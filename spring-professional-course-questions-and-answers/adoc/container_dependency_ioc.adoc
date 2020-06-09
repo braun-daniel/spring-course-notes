@@ -1,0 +1,266 @@
+== Container, Dependency, and IOC
+
+
+What is dependency injection and what are the advantages?::
+
+Dependency injection is a pattern used to create instances of objects that other objects rely on without knowing at compile time which class will be used to provide that functionality.
+
+
+What is an interface and what are the advantages of making use of them in Java?::
+
+An interface is a reference type in Java. It is similar to class. It is a collection of abstract methods. Interfaces provide abstraction from the specific implementations.
+
+
+What is meant by “application-context” and how do you create one?::
+
+The ApplicationContext is the central interface within a Spring application for providing configuration information to the application.
+
+* `ApplicationContext context = SpringApplication.run( ApplicationConfig.class );`
+
+
+What is the concept of a “container” and what is its lifecycle?::
+
+The Spring container is at the core of the Spring Framework. The container will create the objects, wire them together, configure them, and manage their complete lifecycle from creation till destruction. The Spring container uses dependency injection (DI) to manage the components that make up an application.
+
+
+Dependency injection using Java configuration::
+
+Using `@Bean` annotation.
+
+
+Dependency injection in XML, using constructor or setter injection::
+
+-
+
+
+Dependency injection using annotations (@Component, @Autowired)::
+
+-
+
+
+Component scanning, Stereotypes and Meta-Annotations::
+
+`@Service`, `@Respository`, `@Component`, ...
+
+Scopes for Spring beans. What is the default?::
+
+Defaule scope: Singleton. Only once instance per bean.
+
+
+What is an initialization method and how is it declared in a Spring bean?::
+
+The init-method attribute specifies a method that is to be called on the bean immediately upon instantiation. XML: `init-method`, Annotation: `@PostConstruct`.
+
+
+What is a destroy method, how is it declared and when is it called?::
+
+These methods are called at shutdown prior to destroying the bean instance. XML: `destroy-method`, Annotation: `@PreDestroy`.
+
+
+What is a BeanFactoryPostProcessor and what is it used for?::
+
+Applies transformations to bean definitions before objects are actually created. Used to change the bean definition e.g., for reading properties, or registering a custom scope.
+
+What is a BeanPostProcessor and how is the difference to a BeanFactoryPostProcessor? What do they do? When are they called?::
+
+* *BeanFactoryPostProcessor*: Can modify bean definitions. Run after bean definitions got loaded and before instantiating the beans.
+* *BeanPostProcessor*: Can modify bean instances in any way. May run before or after the initialize step.
+
+
+Are beans lazily or eagerly instantiated by default? How do you alter this behavior?::
+
+Each bean is eagerly instantiated by default in right order with its dependencies injected. Change with `@Lazy("true")` or XML `lazy-init="true"`.
+
+
+What does component-scanning do?::
+
+By using `@ComponentScan("...")` and pointing the base package, Spring will auto-discover and wire the components into the Spring container.
+
+
+What is the behavior of the annotation @Autowired with regards to field injection, constructor injection and method injection?::
+
+* *Field:* Optional and circular dependencies, even for private fields. Inherited automatically.
+* *Constructor*: Mandatory, immutable dependencies. Concise (pass several params at once).
+* *Setter*: Similar to field injection, better testability. 
+
+How does the @Qualifier annotation complement the use of @Autowired?::
+
+Prevent disambiguities. NoSuchBeanDefinitionException is thrown at start-up in case no unique bean is defined. Use the `@Qualifier("...")` annotation and explicit bean ids to refer to these.
+
+
+What is the role of the @PostConstruct and @PreDestroy annotations? When will they get called?::
+
+They are lifecycle methods.
+* *@PostConstruct*: Called after construction (after setter injection).
+* *@PreDestroy*: Called before destroying the instance.
+
+IMPORTANT: Both do not get invoked for prototype beans.
+
+
+What is a proxy object and what are the two different types of proxies Spring can create?::
+
+Beans get wrapped in *dynamic (JDK) proxys* which are created in the init phase by dedicated BeanPostProcessors. There are _CGLib_ and _JDK_ proxies.
+
+
+What is the power of a proxy object and where are the disadvantages?::
+
+Behaviour can be added dynamically. Dynamic proxies require interfaces. CGLib works around this limitation using a subclass approach. On the downside, constructor injection is no longer possible.
+
+
+What are the limitations of these proxies (per type)?::
+
+* *JDK proxy*: Requires interfaces.
+* *CGLib proxy*: 
+** Constructor injection not possible.
+** Cannot override final methods.
+
+
+How do you inject scalar/literal values into Spring beans?::
+
+Using `@Value` after defining a `@PropertySource`.
+
+
+How are you going to create a new instance of an ApplicationContext?::
+
+`ApplicationContext context = SpringApplication.run( ApplicationConfig.class );`
+
+TODO: ApplicationContext applicationContext = new ClassPathXmlApplicationContext("/application-context.xml");
+
+
+What is a prefix?::
+
+In the `@PropertySource` path, you can use `classpath:` (default), `file:` and `http:` prefixes.
+
+
+What is the lifecycle on an ApplicationContext?::
+
+Initialization -> Use -> Destruction
+
+
+What does the "@Bean annotation do?::
+
+To declare a bean, simply annotate a method with the @Bean annotation.
+
+
+How are you going to create an ApplicationContext in an integration test or a JUnit test?::
+
+. Run the test with `@RunWith(SpringJUnit4ClassRunner.class)`
+. Implement `ApplicationContextAware` class.
+. Override `setApplicationContext` method to get the context.
+
+
+What do you have to do, if you would like to inject something into a private field?::
+
+Either @Autowired directly on the field, provide a setter or constructor injection.
+
+
+What are the advantages of JavaConfig? What are the limitations?::
+
+* Pros
+** Is centralized in one (or a few) places
+** Write any Java code you need
+** Strong type checking enforced by compiler (and IDE)
+** Can be used for all classes (not just your own)
+* Cons
+** More verbose than annotations
+
+
+What is the default bean id if you only use "@Bean"?::
+
+The method/parameter/field name.
+
+
+Can you use @Bean together with @Profile?::
+
+Yes, if done so the bean will only be created if the profile is active.
+
+What is Spring Expression Language (SpEL for short)?::
+
+The Spring Expression Language (SpEL) is a powerful expression language that supports querying, manipulating as well as evaluating logical and mathematical expressions
+
+
+What is the environment abstraction in Spring?::
+
+Environment object used to obtain properties from runtime environment e.g., JVM System Properties or Java Properties Files.
+
+
+What can you reference using SpEL?::
+
+Variables, Functions.
+
+
+How do you configure a profile. What are possible use cases where they might be useful?::
+
+Profiles can represent purpose: “web”,“offline” or environment: “dev”, “qa”, “uat”, “prod”.
+
+
+How many profiles can you have?::
+
+0..*
+
+
+How do you enable JSR-250 annotations like @PostConstruct?::
+
+They must be in a @Configuration class. Import javax.annotation.
+
+
+Why are you not allowed to annotate a final class with @Configuration::
+
+Because Spring wont't be able to create a CGlib proxy.
+
+
+Why must you have a default constructor in your @Configuration annotated class?::
+
+Spring needs this to be able to instantiate it.
+
+
+Why are you not allowed to annotate final methods with @Bean?::
+
+Because Spring proxies the method to be able to return one cached bean instance (singleton) for every method call.
+
+
+What is the preferred way to close an application context?::
+
+Call `ApplicationContext.close()`.
+
+
+How can you create a shared application context in a JUnit test?::
+
+. Run the test with `@RunWith(SpringJUnit4ClassRunner.class)`
+. Implement `ApplicationContextAware` class.
+. Override `setApplicationContext` method to get the context.
+
+//^
+
+NOTE: Annotate test method with @DirtiesContext to force recreation of the cached ApplicationContext if method changes the contained beans.
+
+//^
+
+
+What does a static @Bean method do?::
+
+Static beans are created first. It ensures property-sources are read before any @Configuration bean using @Value is initialized.
+
+
+What is a ProperySourcesPlaceholderConfigurer used for?::
+
+Resolves ${...} placeholders within bean definition property values and @Value annotations against the current Spring Environment and its set of PropertySources.
+
+
+What is a namespace used for in XML configuration::
+
+They allow hiding of actual bean definitions.
+
+
+If you saw one of the <context/> elements covered in the course, would you know what it does?::
+
+Define component scanning and property sources.
+
+What is @Value used for?::
+
+To inject scalar/literal values into Spring beans.
+
+
+What is the difference between $ and # in @Value expressions?::
+
+`$` to read properties and `#` for SpEL expressions.

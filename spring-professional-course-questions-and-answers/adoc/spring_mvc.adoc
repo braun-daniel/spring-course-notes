@@ -1,0 +1,108 @@
+== Spring MVC and the Web Layer
+
+
+MVC is an abbreviation for a design pattern. What does it stand for and what is the idea behind it?::
+
+MVC (Model, View & Controller). Structure to provide separation of concerns. 
+
+
+Do you need spring-mvc.jar in your classpath or is it part of spring-core?::
+
+No. it is contained in the spring-webmvc artifact.
+
+
+What is the DispatcherServlet and what is it used for?::
+
+A “front controller” which coordinates all request handling activities.
+
+
+Is the DispatcherServlet instantiated via an application context?::
+
+No, each DispatcherServlet has its own context to be separated from the root context where the "working" beans live.
+
+
+What is the root application context? How is it loaded?::
+
+The root context is created by the ContextLoaderListener based on the files named in the contextConfigLocation. This context is intended to contain the beans that compose the core logic of your app.
+
+
+What is the @Controller annotation used for? How can you create a controller without an annotation?::
+
+
+Represents a component that receives HttpServletRequest and HttpServletResponse instances just like a HttpServlet but is able to participate in an MVC workflow. Alternative to annotation: Extend from the MultiActionController class but is deprecated since spring 4.3.
+
+What is the ContextLoaderListener and what does it do?::
+
+Can be used to instantiate the application context. Allows to integrate Spring into almost every web framework.
+
+
+What are you going to do in the web.xml. Where do you place it?::
+
+Declare a ContextLoaderListener. Located in the WEB-INF folder.
+
+
+How is an incoming request mapped to a controller and mapped to a method?::
+
+request -> DispatcherServlet -> controller -> RequestMapping method
+
+
+What is the @RequestParam used for?::
+
+Extracts parameter from the request and performs type conversion.
+
+
+What are the differences between @RequestParam and @PathVariable?::
+
+* *@RequestParam*: Extracts parameter from the request.
+* *@PathVariable*: Extracts path variables e.g., `/accounts/{accountId}`
+
+
+What are some of the valid return types of a controller method?::
+
+. ModelAndView (Class)
+. Model (Interface)
+. Map
+. String
+. void
+. View
+. HttpEntity
+. HttpHeaders
+
+
+What is a View and what's the idea behind supporting different types of View?::
+
+A View renders web output. Allows using many built-in views such as JSPs, XSLT, templating approaches (Velocity, FreeMarker), etc.
+
+
+How is the right View chosen when it comes to the rendering phase?::
+
+The controller either returns a ViewResolver which resolves to the correct view name or a string identifying the logical view name.
+
+
+What is the Model?::
+
+A model holds data for view.
+
+
+Why do you have access to the model in your View? Where does it come from?::
+
+After delegating the request to the controller, which returns a model, after resolving the view, the model is then delegated to the View. The view has to have access to the model since it visualizes the information from the model.
+
+
+What is the purpose of the session scope?::
+
+The session bean scope allows to have stateful beans e.g., for single users for the time they are being logged in.
+
+
+What is the default scope in the web context?::
+
+singleton
+
+Why are controllers testable artifacts?::
+
+Controllers are simple Spring beans, though testable. Each request mapping can be tested separately. Expected views and model content can be verified.
+
+
+What does the InternalResourceViewResolver do?::
+
+In Spring MVC, `InternalResourceViewResolver` is used to resolve “internal resource view” (in simple, it’s final output, jsp or html page) based on a predefined URL pattern.

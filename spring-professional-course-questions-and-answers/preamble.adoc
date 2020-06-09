@@ -1,0 +1,31 @@
+= Spring Professional: Q & A
+:toc: top
+:author: Daniel Kojic
+:email: dan.kojic@gmail.com
+:toclevels: 2
+:description: Q&A for the Spring Professional Test.
+:keywords: Spring, Course, Professional
+:library: Asciidoctor
+:sectlinks: 1
+:numbered:
+:imagesdir: ./img
+:includedir: ./adoc
+:sourcedir: ./src
+:source-highlighter: prettify
+:linkcss:
+
+include::{includedir}/container_dependency_ioc.adoc[]
+
+include::{includedir}/aop.adoc[]
+
+include::{includedir}/data_management.adoc[]
+
+include::{includedir}/spring_mvc.adoc[]
+
+include::{includedir}/security.adoc[]
+
+include::{includedir}/rest.adoc[]
+
+include::{includedir}/spring_boot.adoc[]
+
+include::{includedir}/microservices.adoc[]

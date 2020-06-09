@@ -1,0 +1,468 @@
+== Annotations
+
+[.lead] 
+Annotations for Dependency Injection and Interception - Component scanning and auto-injection.
+
+
+=== Annotation-based Configuration
+
+
+==== Before
+
+* Separation of concerns
+* Java-based dependency injection.
+
+[source,java]
+.Configuration is external to bean-class.
+----
+@Configuration
+public class TransferModuleConfig {
+	@Bean public TransferService transService() { 
+		TransferServiceImpl service = new TransferServiceImpl();
+		service.setAccountRepository(accountRepository());
+		return service;
+	}
+}
+----
+
+
+==== After
+
+[source,java]
+.Annotation-based configuration within bean-class
+----
+@Component
+public class TransferServiceImpl implements TransferService { //<1>
+	@Autowired
+	public TransferServiceImpl(AccountRepository repo) {
+		this.accountRepository = repo; //<2>
+	}
+}
+
+@Configuration @ComponentScan ( “com.bank” ) //<3>
+public class AnnotationConfig {
+	// no bean definition needed anymore
+}
+----
+<1> Bean id derived from class name.
+<2> Annotations embedded with POJO.
+<3> Find `@Component` classes within designated (sub)packages.
+
+
+==== @Autowired
+
+Where a *unique dependency of correct type must exist*. Injection via. *Constructor*, *Method* and *Field* (even `private`, but hard to unit test). Injection can either be *required (default) or not*.
+
+[source,java]
+.Use required attribute to override default behaviour.
+----
+@Autowired(required=false)
+public void setAccountRepository(AccountRepository a) { //<1>
+	// Use required attribute to override default behavior
+ 	this.accountRepository = a; 
+}
+----
+<1> Only inject if dependency exists.
+
+[source,java]
+.Optional<T> (Java 8 only). Was introduced to reduce null pointer errors.
+----
+@Autowired
+Optional<AccountService> accountService;
+
+public void doSomething() {
+	accountService.ifPresent(s -> {...});
+}
+----
+
+==== Constructor vs Setter Dependency Injection
+
+[frame="topbot",options="header,footer"]
+|======================
+|Constructor 					|Setter
+|Mandatory dependencies        	|Optional / changeable dependencies
+|Immutable dependencies        	|Circular dependencies
+|Concise (pass several params at once)        |Inherited automatically
+|======================
+
+IMPORTANT: Be consistent.
+
+
+==== Disambiguation (@Qualifier)
+
+Prevent disambiguities. `NoSuchBeanDefinitionException` is thrown at *start-up* in case no unique bean is defined. Use the `@Qualifier` annotation and explicit bean ids to refer to these. Also available with *method injection and field injection*.
+
+Autowired resolution rules::
+* Look for unique bean of required type
+* Use `@Qualifier` if supplied
+* Try to find a matching bean by name
+
+[source,java]
+.Use of `@Qualifier` annotation.
+----
+@Component("transferService")
+public class TransferServiceImpl implements TransferService {
+	@Autowired
+	public TransferServiceImpl(@Qualifier("jdbcAccountRepository") 
+			AccountRepository accountRepository) {...}
+	...
+}
+
+@Component("jdbcAccountRepository")
+public class JdbcAccountRepository implements AccountRepository {...}
+----
+
+
+==== @Value
+
+Use `$` variables or SpEL.
+
+[source,java]
+.Constructor injection
+----
+@Autowired
+public TransferServiceImpl(@Value("${daily.limit}") int max) {...}
+----
+
+[source,java]
+.Method injection
+----
+ @Autowired
+public void setDailyLimit(@Value("${daily.limit}") int max) {...}
+----
+
+[source,java]
+.Field injection
+----
+@Value("#{systemEnvironment['DAILY_LIMIT']}") 
+private int maxTransfersPerDay;
+----
+
+Provide *fall-back* values.
+
+[source,java]
+.Use colon with `$` variables.
+----
+@Autowired
+public TransferServiceImpl(@Value("${daily.limit:100000}") int max) {...}
+----
+
+[source,java]
+.Use ?: (Elvis operator) for SpEL.
+----
+@Autowired
+public setLimit(@Value("#{environment['daily.limit'] ?: 100000}") int max) {...}
+----
+
+
+==== Component Names
+
+When not specified::
+* Names are auto-generated
+** De-capitalized non-qualified classname by default
+** But will pick up implementation details from classname
+* Recommendation: never rely on generated names! 
+When specified::
+* Allow disambiguation when 2 bean classes implement the same interface
+
+IMPORANT: Avoid using qualifiers when possible. Usually rare to have 2 beans of same type in ApplicationContext.
+
+
+=== Best practices for component-scanning
+
+Components are scanned at startup::
+* Jar dependencies also scanned!
+* Could result in slower startup time if too many files scanned
+** Especially for large applications
+** A few seconds slower in worst case
+
+Use the most specific packages when using `@ComponentScan`. 
+
+[source,java]
+----
+@ComponentScan({"com.bank.app.repository", "com.bank.app.service", "com.bank.app.controller"})
+----
+
+=== Java Config versus annotations
+
+==== Annotation
+
+Nice for frequently changing beans.
+
+Pros::
+* Single place to edit (just the class)
+* Allows for very rapid development
+Cons::
+* Configuration spread across your code base
+** Harder to debug/maintain
+* Only works for your own code
+* Merges configuration and code (bad sep. of concerns)
+
+[source,java]
+.Annotation.
+----
+@Component("transferService") 
+@Scope("prototype") 
+@Profile("dev")
+@Lazy(false)
+public class TransferServiceImpl implements TransferService {
+	@Autowired
+	public TransferServiceImpl(AccountRepository accRep){...}
+	...
+}
+----
+
+==== Java Configuration
+
+Pros::
+* Is centralized in one (or a few) places
+* Write any Java code you need
+* Strong type checking enforced by compiler (and IDE)
+* Can be used for all classes (not just your own)
+
+Cons::
+* More verbose than annotations
+
+[source,java]
+.Java Configuration.
+----
+@Bean
+@Scope("prototype") 
+@Profile("dev")
+@Lazy(false)
+public TransferService transferService() {
+	return new TransferServiceImpl(accountRepository());
+}
+----
+
+
+=== @PostConstruct and @PreDestroy
+
+Add behavior at startup with `@PostConstruct` and shutdown with `@PreDestroy` method annotations. 
+
+IMPORTANT: Annotated methods can have any visibility but must take no parameters and only return void.
+
+[source,java]
+.Example.
+----
+public class JdbcAccountRepository { 
+	@PostConstruct // <1>
+	void populateCache(){...}
+
+	@PreDestroy // <2>
+	void clearCache(){...}
+}
+----
+<1> Called after startup and after all dependencies got injected.
+<2> Called at shutdown prior to destroying the bean instance.
+
+//^
+
+Beans can be created in the normal way::
+* Returned from @Bean methods
+* Found and created by the component-scanner
+* Spring invokes them automatically
+These are not Spring annotations::
+* Defined by JSR-250, part of Java since Java 6
+* In javax.annotation package
+* Also supported by EJB3
+
+//^
+
+PostConstruct::
+* Called after setter methods got called
+* Start -> Constructor called -> Setter(s) called -> @PostConstruct called
+
+PreDestroy::
+* Called when an ApplicationContext is closed 
+** If application (JVM) exits normally
+** Useful for releasing resources & 'cleaning up'
+** Not called for prototype beans
+
+NOTE: `ApplicationContext.close()` triggers the `@PreDestroy`.
+
+Bean alternative::
+* @Bean properties for classes you didn't write and can't annotate
+* @PostConstruct/@PreDestroy for your own classes
+
+[source,java]
+.Bean Alternative: `initMethod` and `destroyMethod`.
+----
+@Bean (initMethod="populateCache”, destroyMethod="clearCache") 
+public AccountRepository accountRepository() {...}
+----
+
+
+=== Stereotypes and meta annotations
+
+Component scanning also checks for annotations that are themselves annotated with @Component (stereotype annotations).
+
+@Component::
+	@Service;; Service classes
+	@Repository;; Data access classes
+	@Controller;; Web classes (Spring Mvc)
+	@Configuration;; Java Configuration
+
+Meta Annotations::
+* Annotation which can be used to annotate other annotations
+** e.g. all service beans should be configurable using component scanning and be transactional
+
+[source,java]
+.Meta Annotation
+----
+@Retention(RetentionPolicy.RUNTIME) 
+@Target(ElementType.TYPE)
+@Service @Transactional(timeout=60) 
+public @interface MyTransactionalService {
+	String value() default ""; 
+}
+----
+
+
+=== @Resource
+
+Identifies dependencies by name (Spring Bean name), not by type. If no name is provided, it first checks the property/field name and the falls back to type checking. It supports only setter and field injection.
+
+@Autowired:: type then name 
+@Resource:: name then type
+
+
+=== Standard Annotations (JSR 330)
+
+Also known as `@Inject`. Is a subset of the @Autowired annotation. `@Named` annotations are also scanned by the component scan.
+
+
+=== Summary
+
+* Spring’s configuration directives can be written using Java, annotations, or XML (next)
+* You can mix and match Java, annotations, and XML as you please
+* Autowiring with @Component allows for almost empty Java configuration files
+
+
+
+== Dependency Injection Using XML
+
+=== Writing bean definitions in XML
+
+[source,xml]
+.Example
+----
+<beans profile=“prod”> // <1>
+	<bean id=“transferService1” class=“com.acme.TransferServiceImpl”>
+		<property name=“repository” ref=“accountRepository” /> // <2>
+	</bean>
+
+	<bean id=“transferService2” class=“com.acme.TransferServiceImpl”> 
+		<constructor-arg ref=“accountRepository”/> // <3>
+		<constructor-arg ref=“customerRepository”/> // <3>
+	</bean>
+
+	<bean id=“service1” class=“com.acme.ServiceImpl”> 
+		<property name=“stringProperty” value=“foo” /> // <4>
+	</bean>
+
+	<import resource=“db-config.xml” /> // <5>
+	
+	<bean id=“service2” class=“com.acme.ServiceImpl” 
+			init-method="setup" destroy-method="clear" /> // <6> 
+
+	<bean id=“accountService1” class=“com.acme.ServiceImpl” scope=“prototype” /> // <7>
+
+	<bean id=“accountService2” class=“com.acme.ServiceImpl” lazy-init=“true”> // <8>
+	...
+</beans>
+----
+<1> @Profile
+<2> Setter injection.
+<3> Constructor injection. Use `index` if type is ambiguous.
+<4> Scalar values.
+<5> Import other XML files.
+<6> @PostConstruct @PreDestroy
+<7> @Scope
+<8> @Lazy("true")
+
+
+Both, setter and constructor injection is combinable. When using scalar values, spring automatically converts types accordingly (Numeric types, BigDecimal, boolean, Date, Locale, Resource).
+
+
+=== Creating an application context 
+
+Use a Java Configuration class, then use `@ImportResource` to specify XML files. When using `SpringApplication.run(MainConfig.class);` just do:
+
+[source,java]
+----
+@Configuration
+@ImportResource( { //<1>
+		“classpath:com/acme/application-config.xml”,
+		“file:C:/Users/alex/application-config.xml” 
+})
+@Import(DatabaseConfig.class) // <2>
+public class MainConfig { ... }
+----
+<1> Multiple files allowed (with prefix).
+<2> Also combine with @Configuration imports.
+
+=== Controlling Bean Behavior
+
+Instead of @PostConstruct and @PreDestroy use `init-method` and `destroy-method`. The profile in a `<beans>` tag applies to all beans in the element. To use multiple profiles use nested `<beans>`
+
+IMPORTANT: Same rules: method can have any visibility, must take no parameters, must return void. Called after dependency injection.
+
+[source,xml]
+.Using multiple profiles.
+----
+<beans xmlns=http://www.springframework.org/schema/beans ...>
+	<bean id="rewardNetwork" ... /> <!-- Available to all profiles -->
+	<beans profile="dev"> ... </beans>
+	<beans profile="prod"> ... </beans>
+</beans>
+----
+
+=== Namespaces
+
+The *default namespace* in a Spring configuration file is typically the *“beans”* namespace. Other namespaces are available: aop (Aspect Oriented Programming), tx (transactions), util, jms, context. They allow *hiding of actual bean definitions*. Use the *STS XML editor namespaces tab* to prevent typos. *Do not use Schema Version Numbers* to ease the migration to the next spring version.
+
+[source,xml]
+.Namespace example.
+----
+<jdbc:embedded-database id="dataSource" type="HSQL">
+	<jdbc:script location="classpath:rewards/testdb/schema.db"/> 
+	<jdbc:script location=""classpath:rewards/testdb/test-data.db"/>
+</jdbc:embedded-database>
+
+<context:property-placeholder location=“db-config.properties” /> // <1>
+
+<bean class="org.springframework...PropertySourcesPlaceholderConfigurer"> // <2>
+	<property name="location" value="db-config.properties"/>
+</bean>
+
+<bean id=“dataSource” class=“com.oracle.jdbc.pool.OracleDataSource”>  // <3>
+	<property name=“URL” value=“${dbUrl}” />
+	<property name=“user” value=“${dbUserName}” />
+</bean>
+----
+<1> This instead of...
+<2> ...this
+<3> Use it here
+
+[source,xml]
+.Equivalent to `@PropertySource ( “classpath:/com/acme/config/app-${ENV}.properties” )`
+----
+<import resource="classpath:config/${current.env}-config.xml"/>
+
+<context:property-placeholder properties-ref=”configProps”/> 
+
+<beans profile="dev">
+	<util:properties id="configProps" location="config/app-dev.properties"> 
+</beans>
+
+<beans profile="prod">
+	<util:properties id="configProps" location="config/app-prod.properties">
+</beans>
+----
+
+[source,xml]
+.Equivalent to `@ComponentScan( { “com.acme.app.repository”, com.acme.app.service”, “com.acme.app.controller” })`
+----
+<context:component-scan base-package=“com.acme.app.repository, com.acme.app.service, com.acme.app.controller” />
+----

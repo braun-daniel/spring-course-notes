@@ -1,0 +1,195 @@
+== Transactions
+
+[.lead]
+Transactional proxies and @Transactional.
+
+=== Why use Transactions?
+
+A set of tasks which take place as a single, indivisible action. It follows the *ACID* principles.
+
+Atomic:: Each unit of work is an all-or-nothing operation.
+Consistent:: Database integrity constraints are never violated.
+Isolated:: Isolating transactions from each other.
+Durable:: Committed changes are permanent.
+
+=== Java Transaction Management 
+
+Java has several APIs which *handle transactions differently*: JDBC, JMS, JTA, Hibernate, JPA, etc. Each uses *program code to mark the start and end of the transaction* (Transaction Demarcation) where there are different APIs for *Global vs Local transactions*.
+
+Local Transactions:: 
+Transactions managed by underlying resource. +
+App => Database
+Global (distributed) Transactions:: 
+Transaction managed by separate, dedicated transaction manager. +
+App => TRX manager => PSQL, RabbitMQ, ...
+
+
+==== Drawbacks
+
+* Multiple APIs for different local resources 
+* Programatic transaction demarcation
+** Typically performed in the repository layer (wrong place) 
+** Usually repeated (cross-cutting concern)
+* Service layer more appropriate
+** Multiple data access methods often called within a single transaction
+** But: don't want data-access code in service-layer Orthogonal concerns
+* Transaction demarcation should be independent of transaction implementation
+
+[source,java]
+.Transactions which are already in progress cannot be joined and code cannot be used with global transactions.
+----
+ try {
+	conn = dataSource.getConnection(); // <1>
+	conn.setAutoCommit(false); // <2>
+	...
+	conn.commit(); // <2>
+} catch (Exception e) { // <3>
+	conn.rollback();
+	...
+}
+----
+<1> Specific to JDBC API.
+<2> Programatic trx demarcation.
+<3> Checked exceptions.
+
+
+=== Spring Transaction Management 
+
+* Spring separates transaction demarcation from transaction implementation
+** Demarcation expressed declaratively via AOP
+*** Programatic approach also available
+** PlatformTransactionManager abstraction hides implementation details.
+*** Several implementations available
+* Spring uses the same API for global vs. local.
+** Change from local to global is minor 
+*** Just change the transaction manager
+
+There are 2 steps: declare a `PlatformTransactionManager` bean and the transactional methods (annotationm, XML or programatic).
+
+
+==== PlatformTransactionManager
+
+Spring’s `PlatformTransactionManager` is the base interface for the abstraction. Several implementations are available e.g., DataSourceTransactionManager, HibernateTransactionManager and more.
+
+[source,java]
+.Manager for a datasource.
+----
+@Bean
+public PlatformTransactionManager transactionManager(DataSource dataSource) {
+	return new DataSourceTransactionManager(dataSource); 
+}
+----
+
+[source,java]
+.In the code.
+----
+public class RewardNetworkImpl implements RewardNetwork {
+
+	@Transactional
+	public RewardConfirmation rewardAccountFor(Dining d) {
+		// atomic unit-of-work
+	}
+}
+----
+
+[source,java]
+.In the configuration.
+----
+@Configuration
+@EnableTransactionManagement // <1>
+public class TxnConfig {
+	
+	@Bean
+	public PlatformTransactionManager transactionManager(DataSource ds){
+		return new DataSourceTransactionManager(ds);
+	}
+----
+<1> Defines a Bean Post-Processor.
+
+//^
+
+What happens::
+. Target object wrapped in a proxy (Around advice)
+. Proxy implements the following behavior
+.. Transaction started before entering the method
+.. Commit at the end of the method
+.. Rollback if method throws a RuntimeException (default, can be overridden)
+. Transaction context bound to current thread. 
+. All controlled by configuration
+
+
+==== @Transactional
+
+On class the @Transactional applies to all methods declared in the interface(s). You can also declare it on both, class- and method- level but with different settings e.g., timeouts.
+
+
+=== Isolation Levels
+
+There are 4 isolation levels where some DBMS may not support all levels.
+
+[source,java]
+----
+@Transactional (isolation=Isolation.XXX)
+----
+
+READ_UNCOMMITTED::
+* Lowest level - allows dirty reads
+* Current transaction can see the results of another uncommitted unit-of-work
+* Typically used for large, intrusive read-only transactions 
+* And/or where the data is constantly changing
+
+READ_COMMITTED::
+* Does not allow dirty reads (only committed information can be accessed)
+* Default strategy for most databases
+
+REPEATABLE_READ::
+* Does not allow dirty reads
+* Non-repeatable reads are prevented
+** If a row is read twice in the same transaction, result will always be the same
+** Might result in locking depending on the DBMS
+
+SERIALIZABLE::
+* Prevents non-repeatable reads and dirty-reads
+* Also prevents phantom reads
+
+
+=== Transaction Propagation
+
+Transaction propagation is calling a `@Transactional` method within another `@Transactional` method. There are *7 levels of propagation*. Two will be presented here.
+
+[source,java]
+----
+@Transactional( propagation=Propagation.XXX )
+----
+
+REQUIRED::
+Default. Execute within a current transaction, create a new one if none existing.
+
+REQUIRES_NEW::
+Create a new transaction, suspending the current transaction of one exists.
+
+MANDATORY::
+Throw exception if none exists; otherwise use current transaction.
+
+NEVER::
+Don't create a transaction if none exists. Throw exception if one existing.
+
+NOT_SUPPORTED::
+Don't create a transaction if none exists. Suspend transaction, if one exists, then run method outside of a transaction.
+
+SUPPORTS::
+Don't create a transaction if none exists; otherwise use existing transaction.
+
+
+=== Rollback rules
+
+By default, a transaction is rolled back if a RuntimeException has been thrown. Default settings can be overridden with `rollbackFor` and `noRollbackFor` attributes.
+
+[source,java]
+----
+@Transactional(rollbackFor=MyCheckedException.class, noRollbackFor={JmxException.class, MailException.class})
+----
+
+=== Testing
+
+Annotate test method (or class) with `@Transactional`. This runs the test method in a transaction and *rolls back afterwards*. Using the `@Commit` annotation, the transaction won't be rolled back. Test methods with `@BeforeTransaction` get executed before the transaction is created.

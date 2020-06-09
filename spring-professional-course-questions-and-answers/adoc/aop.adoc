@@ -1,0 +1,82 @@
+== Aspect oriented programming
+
+
+What is the concept of AOP? Which problem does it solve?::
+
+Aspect-Oriented Programming (AOP) enables modularization of cross-cutting concerns. A cross-Cutting Concern is ageneric functionality that is needed in many places in your application e.g., Logging and Transaction Management.
+
+
+What is a pointcut, a join point, an advice, an aspect, weaving?::
+* *Join Point*: A point in the execution of a program such as a method call or exception thrown.
+* *Pointcut*: An expression that selects one or more Join Points.
+* *Advice*: Code to be executed at each selected Join Point.
+* *Aspect*: A module that encapsulates pointcuts and advice.
+* *Weaving*: Technique by which aspects are combined with main code.
+
+
+How does Spring solve (implement) a cross cutting concern?::
+
+Java-based AOP framework with AspectJ integration. Uses dynamic proxies for aspect weaving. Focuses on using AOP to solve enterprise problems.
+
+
+Which are the limitations of the two proxy-types?::
+
+If the target object to be proxied implements at least one interface then a JDK dynamic proxy will be used. All of the interfaces implemented by the target type will be proxied. If the target object does not implement any interfaces then a CGLIB proxy will be created. However, final methods cannot be advised, as they cannot be overridden.
+
+
+How many advice types does Spring support. What are they used for?::
+
+* *@Before*: Proxy -> BeforeAdvice -> Target
+* *@AfterReturning*: Proxy -> Target(success) -> AfterReturningAdvice
+* *@AfterThrowing*: Proxy -> Target (exception thrown) -> AfterThrowingAdvice
+* *@After*: Proxy -> Target (successful or exception) -> AfterAdvice
+* *@Around*: Proxy -> AroundAdvice -> Target -> AroundAdvice
+
+
+What do you have to do to enable the detection of the @Aspect annotation?::
+
+Use `@ComponentScan` and apply `@EnableAspectJAutoProxy` to the configuration.
+
+
+Name three typical cross cutting concerns.::
+
+Logging, Transaction Management, Security, Caching, Error Handling, Performance Monitoring, Custom Business Rules.
+
+
+What two problems arise if you don't solve a cross cutting concern via AOP?::
+
+Code tangling and scattering.
+
+
+What does @EnableAspectJAutoProxy do?::
+
+Configures Spring to apply @Aspect to you beans. 
+
+
+What is a named pointcut?::
+
+You can refer to the pointcut by its name, so if you have multiple advices referring to the same pointcut you only need to change it in one place and leave the references untouched.
+
+
+How do you externalize pointcuts? What is the advantage of doing this?::
+
+Externalize into a `aop.xml` file. All pointcuts at the same place, separated from Java code.
+
+
+What is the JoinPoint argument used for?::
+
+Provides context information on the intercepted point e.g., method name and signature.
+
+
+What is a ProceedingJoinPoint?::
+
+Inherits from JoinPoint and adds the proceed() method which actually invokes the method. Method invocation is up to the Advice.
+
+
+Which advice do you have to use if you would like to try and catch exceptions?::
+
+@AfterThrowing, @After or @Around advice.
+
+What is the difference between @EnableAspectJAutoProxy and <aop:aspectj-autoproxy>?::
+
+XML vs. Java configuration.

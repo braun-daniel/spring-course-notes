@@ -1,0 +1,43 @@
+== Introduction
+
+=== What is the Spring Framework?
+
+Spring is an *Open Source*, *Lightweight*, *Container* and *Framework* for building Java enterprise applications.
+
+==== Lightweight
+* Spring applications do not require a Java EE application server (but can be deployed on one).
+* Not invasive
+** Does not require you to extend framework classes or implement framework interfaces for most usage
+** You write your code as POJOs
+* Small jars
+
+==== Container
+* Spring as a container for your application objects.
+** Objects do not have to worry how to find/connect to each other.
+* Spring instantiates and dependency injects your objects
+** Serves as a lifecycle manager
+
+==== Framework
+* Spring provides framework classes to simplify working with lower-level technologies e.g., 
+** JDBC, JMS, AMQP, Transactions, ORM / JPA, NoSQL, Security, Web, Tasks, Scheduling, Mail, Files, XML/JSON Marshalling, Remoting, REST services, SOAP services, Mobile, Social, ...
+* Framework classes for abstraction of lower-level technologies.
+
+
+=== Spring is a Container
+
+Spring provides support for assembling such an application system from its parts. +
+
+* Parts do not worry about finding each other.
+* Any part can easily be swapped out.
+* Parts are POJOs.
+* Interface usage allows swapping backing implementations.
+
+=== What is Spring Used For?
+
+Spring provides infrastructural support for developing enterprise Java applications. It deals with the plumbing so you can focus on solving the domain problem. It provides:
+
+* Web Interfaces 
+* Messaging 
+* Persistence 
+* Batch 
+* Integration

@@ -1,0 +1,303 @@
+== Java Persistence API (JPA)
+
+[.lead]
+Object Relational Mapping with Spring & Java Persistence API.
+
+
+=== Introduction to JPA
+
+The Java Persistence API is designed for operating on domain objects: *Pojos, no interfaces*. It is a common API for object-relational mapping.
+
+==== General Concepts
+
+The key concepts comprise the Entity Manager, Entity Manager Factory and the Persistence Context.
+
+EntityManager::
+* Manages a unit of work and persistent objects therein: the `PersistenceContext`.
+* Lifecycle often bound to a Transaction (usually container- managed).
+
+[source,java]
+----
+persist(Object o); // SQL: insert into table ... <1>
+remove(Object o); // SQL: delete from table ... <2>
+find(Class entity, Object primaryKey); // SQL: select * from table where id = ? <3>
+Query createQuery(String jpqlString); // <4>
+flush(); // <5>
+----
+<1> Adds the entity to the Persistence Context. 
+<2> Removes the entity from the Persistence Context.
+<3> Find by primary key.
+<4> Create a JPQL query.
+<5> Force changed entity state to be written to database immediately.
+
+//^
+
+EntityManagerFactory::
+* thread-safe, shareable object that represents a single data source / persistence unit.
+* Provides access to new application-managed EntityManagers.
+
+Persistence Unit::
+* Describes a group of persistent classes (entities)
+* Defines provider(s)
+* Defines transactional types (local vs JTA)
+* Multiple Units per application are allowed
+
+//^
+
+NOTE: The configuration can be in the Persistence Unit in the Spring bean-file or a combination of the two.
+
+.Persistence Context and EntityManager.
+image::jpa_overview.png[]
+
+
+==== Mapping
+
+JPA requires metadata for mapping classes/fields to database tables/columns, usually provided as *annotations* (XML mappings also supported for overrides). JPA metadata relies on defaults -> do not specify the obvious. Annotate classes (table), fields (column, persistent by default vs. transient) or getters (also columns).
+
+Common relationship mappings e.g., single and collection of entities are supported. *Associations can be uni- or bi-directional*.  You can also *map a row to multiple classes* with `@AttributeOverride(...)`.
+
+[source,java]
+.Mapping using fields. `@Entity` and `@Id` are mandatory.
+----
+@Entity // <1>
+@Table(name= “T_CUSTOMER”) // <1>
+public class Customer {
+
+	@Id // <2>
+	@Column(name=“cust_id”) // <3>
+	private Long id;
+
+	@Column(name=“first_name”) // <3>
+	private String firstName;  
+
+	@Transient // <4>
+	private User currentUser;
+
+	@OneToMany
+	@JoinColumn (name=“cid”) // <5>
+	private Set<Address> addresses;
+
+	@Embedded 
+	@AttributeOverride (name="postcode", column=@Column(name="ZIP")) // <6>
+	private Address office;
+	...
+}
+
+@Embeddable
+public class Address { 
+	private String street; 
+	private String suburb; 
+	private String city; 
+	private String postcode; // <6>
+	private String country;
+}
+----
+<1> Mark as an entity Optionally override table name.
+<2> Mark id-field (primary key).
+<3> Optionally override column names.
+<4> Not stored in database.
+<5> Foreig key in Address table.
+<6> Maps to "ZIP" column in "T_CUSTOMER".
+
+[source,java]
+.Mapping using accessors.
+----
+@Entity @Table(name= “T_CUSTOMER”)
+public class Customer {
+	private Long id;
+	private String firstName;
+	
+	@Id // <1>
+	@Column (name=“cust_id”)
+	public Long getId() { return this.id; }
+
+	@Column (name=“first_name”) // <2>
+ 	String getFirstName() { return this.firstName; } 
+
+	public void setFirstName(String fn) { this.firstName = fn; }
+}
+----
+<1> Must place `@Id` on the getter.
+<2> Other annotations also place on getter methods.
+
+
+==== Querying
+
+* Retrieve an object *by primary key*.
+* Query for objects using *JPA Query Language (JPQL)*.
+** Similar to SQL and HQL.
+* Query for objects using *Criteria Queries*.
+** API for creating ad hoc queries.
+* Execute *SQL directly* to underlying database.
+** “Native” queries, allow DBMS-specific SQL to be used.
+** Consider JdbcTemplate instead when not using managed objects – more options/control, more efficient.
+
+//^
+
+Querying by Primary Key::
+To retrieve an object by its database identifier simply call find() on the EntityManager. Returns null if no object exists.
+
+//^
+
+Querying with JPQL::
+Query for objects with `SELECT` based on properties or associations (cannot use `*`).
+
+//^
+
+[source,java]
+----
+// Query with named parameters
+TypedQuery<Customer> query = entityManager.createQuery(
+		“select c from Customer c where c.address.city = :city”, 
+		Customer.class); query.setParameter(“city”, “Chicago”);
+List<Customer> customers = query.getResultList();
+
+// ... or using a single statement 
+List<Customer> customers2 = entityManager.createQuery(“select c from Customer c ...”, Customer.class)
+		.setParameter(“city”, “Chicago”)
+		.getResultList();
+
+// ... or if expecting a single result
+Customer customer = query.getSingleResult();
+----
+
+
+=== Configuring JPA in Spring
+
+Steps to using JPA with Spring::
+. Define an EntityManagerFactory bean.
+. Define a DataSource bean
+. Define a Transaction Manager bean
+. Define Mapping Metadata
+. Define DAOs
+
+[source,java]
+----
+@Beean
+public LocalContainerEntityManagerFactoryBean entityManagerFactory(){
+
+	HibernateJpaVendorAdapter adapter = new HibernateJpaVendorAdapter(); 
+	adapter.setShowSql(true);
+	adapter.setGenerateDdl(true);
+	adapter.setDatabase(Database.HSQL);
+	
+	Properties props = new Properties(); 
+	props.setProperty("hibernate.format_sql", "true");
+	
+	LocalContainerEntityManagerFactoryBean emfb = new LocalContainerEntityManagerFactoryBean();
+	emfb.setDataSource(dataSource); 
+	emfb.setPackagesToScan("rewards.internal"); 	
+	emfb.setJpaProperties(props); emfb.setJpaVendorAdapter(adapter);
+	return emfb; 
+}
+
+@Bean
+public PlatformTransactionManager transactionManager(EntityManagerFactory emf) { 
+	return new JpaTransactionManager(emf);
+}
+
+@Bean
+public DataSource dataSource() { // Lookup via JNDI or create locally. }
+----
+
+.EntityManagerFactoryBean Configuration.
+image::jpa_config.png[]
+
+
+=== Implementing JPA DAOs
+
+JPA provides configuration options so Spring can manage transactions and the EntityManager. There are *no Spring dependencies in your DAO* implementations. Optional: Use AOP for transparent exception translation: rethrows JPA PersistenceExceptions as Spring's DataAccessExceptions
+
+Spring-Managed Transactions & EntityManager::
+* Transparently participate in Spring-driven transactions:
+** Use a Spring FactoryBean for building the EntityManagerFactory
+** Inject an EntityManager reference with @PersistenceContext
+* Define a transaction manager
+** JpaTransactionManager / JtaTransactionManager
+
+[source,java]
+.The repository.
+----
+public class JpaCustomerRepository implements CustomerRepository { 
+	private EntityManager entityManager;
+	
+	@PersistenceContext // <1>
+	public void setEntityManager (EntityManager entityManager) { 
+		this. entityManager = entityManager;
+	}
+	
+	public Customer findById(long orderId) {
+		return entityManager.find(Customer.class, orderId); // <2>
+	}
+}
+----
+<1> Automatic injection of EM proxy.
+<2> Proxy resloves to EM when used.
+
+[source,java]
+.The configuration.
+----
+@Bean
+public LocalContainerEntityManagerFactoryBean entityManagerFactory() { ... }
+
+@Bean
+public CustomerRepository jpaCustomerRepository() {
+	return new JpaCustomerRepository(); 
+}
+
+@Bean
+public PlatformTransactionManager transactionManager(EntityManagerFactory emf) throws Exception { 
+	return new JpaTransactionManager(emf);
+}
+----
+
+.How JPA works.
+image::how_jpa.png[]
+
+'''
+
+.How JTA works.
+image::how_jta.png[]
+
+
+=== Spring Data – JPA
+
+Spring Data reduces boiler plate code for data access. It provides *instant repositories* by *annotating domain classes*. Repositories are *just interfaces*. Spring implements it at runtime by scanning for `Repository<T,K>` interfaces. *CRUD-methods are then auto-generated*. It allows paging, custom queries and sorting.
+
+To use it with JPA, annotate JPA Domain object as usual and define `@EnableJpaRepositories(basePackages=com.acme.**.repository")` in your configuration class. Spring Data provides similar annotations to JPA e.g., `@Document`, `@Region`, `@NodeEntity` as well as templates e.g., `MongoTemplate`, `GemfireTemplate`, `RedisTemplate`. Extend predefined repository interfaces with custom finders or any method from the `CrudRepository`. Implement  `PagingAndSortingRepository<T, K>` to add `Iterable<T> findAll(Sort)` and `Page<T> findAll(Pageable)`.
+
+Auto-generated finders obey naming convention: `findBy<DataMember><Op>` where `<Op>` can be Gt, Lt, Ne, Between, Like, etc.
+
+[source,java]
+.Extend predefined interfaces.
+----
+public interface CrudRepository<T, ID> extends Serializable> extends Repository<T, ID> {
+	public <S extends T> save(S entity);
+	public <S extends T> Iterable<S> save(Iterable<S> entities);
+	
+	public T findOne(ID id); 
+	public Iterable<T> findAll();
+	public void delete(ID id); 
+	public void delete(T entity); 
+	public void deleteAll();
+}
+
+public interface CustomerRepository extends CrudRepository<Customer, Long> {
+	public Customer findByEmail(String someEmail); // No <Op> for Equals 
+	public Customer findByFirstOrderDateGt(Date someDate);
+	public Customer findByFirstOrderDateBetween(Date d1, Date d2);
+
+	@Query("select u from Customer u where u.emailAddress = ?1")
+	Customer findByEmail(String email); // ?1 replaced by method param
+}
+----
+
+
+=== Summary
+
+* Use 100% JPA to define entities and access data
+** Repositories have no Spring dependency
+** Spring Data Repositories need no code!
+* Use Spring to configure JPA entity-manager factory
+** Smart proxy works with spring-driven transactions
+** Optional translation to DataAccessExceptions

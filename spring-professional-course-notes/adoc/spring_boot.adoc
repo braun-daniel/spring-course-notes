@@ -1,0 +1,289 @@
+== Spring Boot
+
+[.lead]
+Starter POMS and Auto-Configuration
+
+=== What is Spring Boot?
+
+An *opinionated runtime* for Spring Projects which *handles most low-level setup* with *support for different project types* like web and batch. You only need 3 files to get a running Boot app:
+
+* Dependency management e.g., `pom.xml`
+* Spring MVC controller
+* Application launcher
+
+
+==== Definition and Hello World example
+
+Opinionated Runtime::
+* Spring Boot uses sensible defaults, “opinions”, mostly based on the classpath contents.
+* For example
+** Sets up a JPA Entity Manager Factory if a JPA implementation is on the classpath.
+** Creates a default Spring MVC setup, if Spring MVC is on the classpath.
+* Everything can be overridden easily.
+** But most of the time not needed
+
+//^
+
+Deployment::
+* Example bundles Tomcat inside the application and runs as *executable jar*.
+* Spring Boot apps can be deployed into an existing app server.
+** As familiar WAR file.
+
+//^
+
+[source,xml]
+.Example maven descriptor. Can also use gradle or Ant/Ivy.
+----
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId> // <1>
+    <version>1.3.0.RELEASE</version>
+</parent>
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId> // <2>
+        <artifactId>spring-boot-starter-web</artifactId> // <3>
+    </dependency>
+	<dependency>
+	     <groupId>org.springframework.boot</groupId>
+	     <artifactId>spring-boot-starter-test</artifactId> // <4>
+	</dependency>
+</dependencies>
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+		</plugin>
+    </plugins>
+</build>
+----
+<1> Defines properties e.g., `${spring.version=4.2}`
+<2> Resolves ~16 JARs e.g., spring-boot-*.jar, spring-core-*.jar, even various web dependencies e.g., tomcat-*.jar
+<3> Spring MVC embedded tomcat. Version not needed. Defined by parent.
+<4> Resolves spring-test-*.jar, junit-*.jar, mockito-*.jar and various other test frameworks.
+
+[source,java]
+.Spring MVC controller.
+----
+@RestController
+public class HelloController { 
+
+	@RequestMapping("/") 
+	public String hello() {
+		return "Greetings from Spring Boot!"; // <1>
+	}
+}
+----
+<1> Returns a String as the HTTP response body.
+	
+[source,java]
+.Annotation class.
+----
+@SpringBootApplication // <1>
+public class Application {
+	
+	public static void main(String[] args) { 
+		SpringApplication.run(Application.class, args);
+	}
+}
+----
+<1> Runs embedded tomcat.
+
+
+=== Spring Boot Explained
+
+
+==== Dependency Management
+
+How to use Spring Boot::
+* Add the appropriate Spring Boot dependencies.
+* The easiest is to use a dependency management tool Spring Boot works with Maven, Gradle, Ant/Ivy.
+
+General::
+* Spring Boot parent pom dfines key versions of dependencies and maven plugin.
+* Various starter POMs available for common Java enterprise framworks e.g., spring-boot-starter-[jdbc|jpa|batch].
+
+
+==== Auto Configuration
+
+@EnableAutoConfiguration::
+* Annotation on a Spring Java configuration class.
+** Causes Spring Boot to automatically create beans it thinks you need.
+** Usually based on classpath contents, can easily override.
+
+//^
+
+@SpringBootApplication::
+* Very common to use @EnableAutoConfiguration, @Configuration, and @ComponentScan together.
+** @ComponentScan, with no arguments, scans the current package and its sub-packages.
+
+//^
+
+[source,java]
+----
+// this...
+@Configuration 
+@ComponentScan 
+@EnableAutoConfiguration 
+public class MyAppConfig { ... }
+
+// ... vs this.
+@SpringBootApplication
+public class MyAppConfig { ... }
+----
+
+
+==== Containerless Applications
+
+Spring Boot as a runtime::
+* Spring Boot can startup an embedded web server
+** You can run a web application from a JAR file!
+** Tomcat included in Web Starter
+* Jetty can be used instead of Tomcat
+** In pom:
+*** Exclude `spring-boot-starter-tomcat`
+*** Include `spring-boot-starter-jetty`
+
+//^
+
+Why run Web-Application outside of a Container?::
+* No separation of container config and app config.
+** They depend on each other anyway (like JNDI DS names, security config).
+* Apps mostly target to a specific container.
+** Why not include that already?
+* Easier debugging and profiling.
+* Easier hot code replacement.
+* No special IDE support needed.
+* Familiar model for non-Java developers .
+* Recommended for Cloud Native applications.
+
+
+==== Packaging
+
+* Spring Boot creates a single archive.
+** Jar or War.
+** Can also include the Application Server.
+* Can be executed with “java -jar yourapp.war”.
+* Gradle and Maven plugins available.
+* Produces: 
+** `*.jar`: Contains your code and all libs - executable.
+** `*.jar.original`: Contains only your code.
+
+[source,xml]
+.Maven Packaging. Add the boot maven plugin to pom.xml.
+----
+<build>
+  <plugins>
+    <plugin>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-maven-plugin</artifactId>
+    </plugin>
+  </plugins>
+</build>
+----
+
+
+=== Spring Boot inside of a Servlet Container
+
+Your choice whether containerless or not::
+* Embedded container is just one feature of Spring Boot.
+* Traditional WAR also benefits a lot from Spring Boot.
+** Automatic Spring MVC setup, including DispatcherServlet.
+** Sensible defaults based on the classpath content.
+** Embedded container can be used during development.
+
+Spring Boot in a Servlet Container::
+* Spring Boot can also run in any Servlet 3.x container 
+** e.g., Tomcat 7+, Jetty 8+
+* Only small changes required
+** Change artifact type to WAR (instead of JAR).
+** Extend SpringBootServletInitializer.
+** Override configure method.
+* Still no web.xml required
+
+//^
+
+Spring Boot WAR file::
+* Spring Boot produces hybrid WAR file.
+* Can still be executed with embedded Tomcat.
+** Using “java -jar yourapp.war”.
+* Traditional WAR file produced as well.
+** Without embedded Tomcat.
+** Just drop it in your application server web app directory
+
+//^
+
+[source,java]
+.Servlet Container and Containerless.
+----
+@ComponentScan
+@EnableAutoConfiguration
+public class Application extends SpringBootServletInitializer {
+	
+	protected SpringApplicationBuilder configure( SpringApplicationBuilder application) {
+		return application.sources(Application.class); 
+	}
+
+	public static void main(String[] args) { 
+		SpringApplication.run(Application.class, args);
+	}
+}
+----
+
+
+=== Ease of Use Features
+
+Externalized Properties::
+* Easily consumable with Spring `PropertySource`
+* Spring boot automatically looks for `application.properties` in the classpath root.
+* Starter POMs declare the properties to use (see reference documentation).
+* Override location of a file:
+[source,java]
+----
+System.setProperty("spring.config.name", "myserver"); 
+SpringApplication.run(Application.class, args);
+----
+* Spring boot supports YAML configuration (application.yml).
+
+//^
+
+Controlling Log Levels::
+* Boot can control the logging level
+** Just set it in application.properties
+* Works with most frameworks e.g., Java Util Logging, Logback, Log4J and Log4J2.
+
+//^
+
+Data Source Configuration::
+* Use either spring-boot-starter-jdbc or spring-boot-starter- data-jpa and include a JDBC driver on classpath.
+* Declare poroperties:
+[source,java]
+----
+spring.datasource.url=jdbc:mysql://localhost/test
+spring.datasource.username=dbuser
+spring.datasource.password=dbpass
+spring.datasource.driver-class-name=com.mysql.jdbc.Driver
+----
+
+//^
+
+Web Application Convenience::
+* Boot automatically configures Spring MVC DispatcherServlet and @EnableWebMvc defaults.
+** When spring-webmvc*.jar on classpath.
+* Static resources served from classpath.
+** /static, /public, /resources or /META-INF/resources.
+* Templates served from /templates.
+** When Velocity, Freemarker, Thymeleaf, or Groovy on classpath.
+* Provides default /error mapping.
+** Easily overridden.
+
+
+=== Summary
+
+* Spring Boot speeds up Spring application development
+* You always have full control and insight
+* Nothing is generated
+* No special runtime requirements
+* No servlet container needed (if you want)
+** E.g. ideal for microservices

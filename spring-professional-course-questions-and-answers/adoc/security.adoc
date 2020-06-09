@@ -1,0 +1,90 @@
+== Security
+
+
+What is the delegating filter proxy?::
+
+Proxy for a standard Servlet Filter, delegating to a Spring-managed bean that implements the Filter interface.
+
+
+What is the security filter chain?::
+
+Spring Security maintains a filter chain internally where each of the filters has a particular responsibility and filters are added or removed from the configuration depending on which services are required.
+
+
+In the notes several predefined filters were shown. Do you recall what they did and what order they occurred in?::
+
+* *SecurityContextIntegrationFilter*:
+** Establishes SecurityContext and maintains between HTTP requests (formerly: HttpSessionContextIntegrationFilter)
+
+* *LogoutFilter*:
+** Clears SecurityContextHolder when logout requested
+
+* *UsernamePasswordAuthenticationFilter*:
+** Puts Authentication into the SecurityContext on login request (formerly: AuthenticationProcessingFilter)
+
+* *ExceptionTranslationFilter*:
+** Converts SpringSecurity exceptions into HTTP response or redirect
+
+* *FilterSecurity Interceptor*:
+** Authorizes web requests based on on config attributes and authorities
+
+
+Are you able to add and/or replace individual filters?::
+
+Yes. Implement a custom `Filter` bean and add it before/after an existing one or replace one using `http.addFilterAfter (...)`.
+
+
+Is it enough to hide sections of my output (e.g. JSP-Page)?::
+
+No, backend must enforce it, too.
+
+
+Why do you need the intercept-url?::
+
+To secure individual URLs e.g., by allowing role-based access.
+
+
+Why do you need method security? What type of object is typically secured at the method level (think of its purpose not its Java type).::
+
+To manage security aspects on a more fine-grained scale. Allows securing data manipulation etc.
+
+
+Is security a cross cutting concern? How is it implemented internally?::
+
+Yes. Implemented using AOP.
+
+
+What do @Secured and @RolesAllowed do? What is the difference between them?::
+
+Both specify the security roles permitted to access methods in an application. The difference is that `@RolesAllowed` is a Java annotation (JSR-250) and `@Security` is a Speing Security annotation.
+
+
+What is a security context?::
+
+A security context contains the authenticated principal’s information.
+
+
+In which order do you have to write multiple intercept-url's?::
+
+Patterns are always evaluated in the order they are defined. Thus it is important that more specific patterns are defined higher in the list than less specific patterns e.g., the more specific `/secure/super/` pattern must appear higher than the less specific `/secure/` pattern. If they were reversed, the `/secure/` pattern would always match and the `/secure/super/` pattern would never be evaluated.
+
+
+How is a Principal defined?::
+
+Create a `User` and `Role` entity and implement a `UserDetailsService`.
+
+
+What is authentication and authorization? Which must come first?::
+
+* *Authentication*: Verifying that a principal’s credentials are valid.
+* *Authorization*: Deciding whether a principal is allowed to perform an operation.
+
+
+In which security annotation are you allowed to use SpEL?::
+
+`@PreAuthorize`, `@PreFilter`, `@PostAuthorize`, `@PostFilter`, `access` within a intercept-url.
+
+
+Does Spring Security support password hashing? What is salting?::
+
+Yes. Can encode passwords using a hash e.g., sha, md5, bcrypt. A salt is random data that is used as an additional input to a one-way function that "hashes" a password or passphrase. It makes brute force attacks harder.

@@ -1,0 +1,479 @@
+== Dependency Injection - Part 1
+
+[.lead]
+Introducing the Spring Application Context and Spring's Java Configuration capability. +
+
+
+=== Spring quick start
+
+1. Application classes get injected into Spring Application Context
+2. Configuration Instructions get injected into Application Context.
+3. Spring Application Context creates Fully configured App.
+
+[source,java]
+.Application classes.
+----
+public class TransferServiceImpl implements TransferService { 
+	public TransferServiceImpl(AccountRepository ar) { // <1>
+		this.accountRepository = ar; }
+	}
+	...
+}
+----
+<1> Needed to perform money transfers between accounts.
+
+[source,java]
+.Configuration Instructions.
+----
+@Configuration
+public class ApplicationConfig {
+	@Bean
+	public TransferService transferService() {
+		return new transferServiceImpl(accountRepository());
+	}
+
+	@Bean
+	public AccountRepository accountRepository() {
+		return new AccountRepository(dataSource());
+	}
+
+	@Bean
+	public DataSource dataSource() {
+		return new new BasicDataSource());
+	}
+}
+----
+
+[source,java]
+.Creating and using the app.
+----
+// Create the application from the configuration
+ApplicationContext context = SpringApplication.run( ApplicationConfig.class );
+
+// Look up the application service interface
+TransferService service = (TransferService) context.getBean(“transferService”); // <1>
+
+// Use the application
+service.transfer(new MonetaryAmount(“300.00”), “1”, “2”);
+----
+<1>  Bean ID based on method name.
+
+[source,java]
+.Accessing a Bean.
+----
+ApplicationContext context = SpringApplication.run(...); // <1>
+
+// Classic way: cast is needed
+TransferService ts1 = (TransferService) context.getBean(“transferService”); 
+
+// Use typed method to avoid cast
+TransferService ts2 = context.getBean(“transferService”, TransferService.class);
+
+// No need for bean id if type is unique
+TransferService ts3 = context.getBean(TransferService.class );
+----
+<1> Inject configuration classes into the run method e.g. `AppConfig.class`
+	
+Summary::
+
+* Spring manages the lifecycle of the application
+** All beans are fully initialized before use
+* Beans are always created in the right order
+** Based on their dependencies
+* Each bean is bound to a unique id
+** The id reflects the service or role the bean provides to clients
+** Bean id should not contain implementation details
+
+
+=== Creating an application context
+
+Spring application contexts can be *bootstrapped in any environment*, including JUnit, a Web application
+and Standalone applications.
+
+[source,java]
+.Using an Application Context Inside a JUnit System Test.
+----
+class TransferServiceTests { 
+	private TransferService service;
+
+	@Before public void setUp() { // <1>
+		// Create the application from the configuration 
+		ApplicationContext context = SpringApplication.run( ApplicationConfig.class ) 
+		// Look up the application service interface
+		service = context.getBean(TransferService.class);
+	}
+
+	@Test public void moneyTransfer() { // <2>
+		Confirmation receipt = service.transfer(new MonetaryAmount(“300.00”), “1”, “2”));
+		Assert.assertEquals(receipt.getNewBalance(), “500.00”);
+	}
+}
+----
+<1>  Bootstraps the system to test.
+<2> Tests the system.
+
+
+=== Multiple Configuration Files
+
+
+==== General
+
+Devide your configuration into *multiple configuration* classes using `@Import`. This defines a *single Application Context* with beans sourced from *mutliple files*.
+
+[source,java]
+----
+@Configuration
+@Import({InfrastructureConfig.class, WebConfig.class })
+public class ApplicationConfig { ... }
+
+@Configuration
+public class InfrastructureConfig { ... }
+
+@Configuration
+public class WebConfig { ... }
+----
+
+Best Practice::
+Separate out “application” beans e.g., services from “infrastructure” beans e.g., datasources. Infrastructure often changes between environments.
+
+
+==== Referencing beans from another file
+Either use `@Autowired` to reference bean defined in a separate configuration file or define Define `@Bean` method parameters.
+
+[source,java]
+.Autowired.
+----
+@Configuration
+@Import( InfrastructureConfig.class ) 
+public class ApplicationConfig {
+
+	@Autowired DataSource dataSource;
+
+	@Bean
+	public AccountRepository accountRepository() {
+		return new JdbcAccountRepository( dataSource ); }
+	}
+}
+
+@Configuration
+public class ApplicationConfig {
+
+	@Bean
+	public DataSource dataSource() {
+		return ...;
+	}
+}
+----
+
+[source,java]
+.Bean.
+----
+@Configuration
+@Import( InfrastructureConfig.class ) 
+public class ApplicationConfig {
+	
+	@Bean
+	public AccountRepository accountRepository( DataSource dataSource ) { // <1>
+		return new JdbcAccountRepository( dataSource ); 
+	}
+}
+
+@Configuration
+public class InfrastructureConfig {
+	
+	@Bean
+	public DataSource dataSource() {
+		return ...;
+	} 
+}
+----
+<1> Spring matches this by type.
+
+WARNING: It is not illegal to define the same bean more than once. *You get the last bean Spring sees* defined.
+
+
+=== Bean scope
+
+singleton _(default)_:: A single instance is used.
+prototype:: A new instance is created each time the bean is referenced.
+session _(web environment)_:: A new instance is created once per user session.
+request _(web environment)_:: A new instance is created once per request.
+custom scope name _(advanced feature)_:: You define your own rules and a new scope name.
+
+
+=== Summary
+
+* Your object is handed what it needs to work 
+** Frees it from the burden of resolving its dependencies
+** Simplifies your code, improves code reusability
+* Promotes programming to interfaces
+** Conceals implementation details of dependencies
+* Improves testability
+** Dependencies easily stubbed out for unit testing
+* Allows for centralized control over object lifecycle
+** Opens the door for new possibilities
+
+
+
+== Dependency Injection - Part 2
+
+=== External Properties
+Bad practice to use hard coded properties e.g., db username. Instead externalize properties. Either use the *Environment object* or *@Value* annotation.
+
+
+==== Environment Object
+
+* Environment object used to obtain properties from runtime environment
+* Properties from many sources:
+** JVM System Properties
+** Java Properties Files
+** Servlet Context Parameters
+** System Environment Variables
+** JNDI
+
+[source,java]
+.Using the Environment object to get the properties.
+----
+@Autowired public Environment 
+
+@Bean public DataSource dataSource() {
+	DataSource ds = new BasicDataSource(); 
+	ds.setDriverClassName( env.getProperty(“db.driver”));
+	ds.setUrl( env.getProperty( “db.url” ));
+	ds.setUser( env.getProperty( “db.user” )); 
+	ds.setPassword( env.getProperty( “db.password” )); 
+	return ds;
+} 
+----
+
+
+==== @Value
+
+[source,java]
+.Using the `@Value` annotation to get the properties.
+----
+@Configuration
+public class ApplicationConfig {
+
+	@Bean
+	public DataSource dataSource(
+			@Value("${db.driver}") String dbDriver, 
+			@Value("${db.url}") String dbUrl, 
+			@Value("${db.user}") String dbUser, 
+			@Value("${db.password}") String dbPassword) {
+		DataSource ds = new BasicDataSource(); 
+		ds.setDriverClassName( dbDriver); 
+		ds.setUrl( dbUrl);
+		ds.setUser( dbUser);
+		ds.setPassword( dbPassword ));
+		return ds; 
+	}
+}
+----
+
+
+==== Property Sources
+
+* Environment obtains values from “property sources”
+** System properties & Environment variables populated automatically
+** Use `@PropertySources` to contribute additional properties
+** Available resource prefixes: `classpath:` `file:` `http:`
+
+[source,java]
+----
+@Configuration
+@PropertySource ( “classpath:/com/organization/config/app.properties” ) 
+public class ApplicationConfig {
+	...
+	@Bean
+	public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
+		return new PropertySourcesPlaceholderConfigurer(); //<1>
+	}
+}
+----
+<1>  `@PropertySource` ignored unless this bean declared.
+
+Loading::
+
+* Property sources are loaded by a dedicated Spring bean 
+** The PropertySourcesPlaceholderConfigurer
+
+WARNING: This is a static bean. Such beans are created first. It ensures property-sources are read before any `@Configuration` bean using `@Value` is initialized.
+
+Placeholders::
+
+* `${...}` placeholders in a @PropertySource are resolved against existing properties.
+** Such as System properties & Environment variables.
+
+[source,java]
+----
+@PropertySource ( “classpath:/com/acme/config/app-${ENV}.properties” )
+----
+
+. app-dev.properties
+----
+db.user=transfer-app
+db.password=secret45
+----
+
+. app-prod.properties
+----
+db.user=transfer-app
+db.password=secret46
+----
+
+
+=== Profiles
+
+Grouping::
+
+Beans can be grouped into Profiles.
+
+* Profiles can *represent purpose*: “web”,“offline”
+* *Or environment*: “dev”, “qa”, “uat”, “prod”
+* Beans *included/excluded* based on profile membership
+** Beans with *no profile are always available*.
+
+Simply use the `@Profile("sample_profile")` annotation either on:
+
+* `@Configuration` classes: All beans in that class belong to that profile.
+* `@Bean` methods: Only this bean belongs to that profile.
+
+[source,java]
+----
+@Bean(name="dataSource") // <1>
+@Profile("dev")// <2>
+public DataSource dataSourceForDev() { ... }
+
+@Bean(name="dataSource") // <1> 
+@Profile("prod") // <2>
+public DataSource dataSourceForProd() { ... }
+----
+<1> Same bean name.
+<2> Different profiles.
+
+Activate Profiles::
+
+Profiles must be activated at run-time.
+
+* Integration Test: Use @ActiveProfiles
+* System property: `-Dspring.profiles.active=dev,jpa`
+* In `web.xml`:
+
+[source,xml]
+----
+<context-param>
+	<param-name>spring.profiles.active</param-name>
+	<param-value>jpa,web</param-value>
+</context-param>
+----
+* Programmatically on ApplicationContext: Simply set `spring.profiles.active` system property before instantiating `ApplicationContext`
+
+=== Spring Expression Language (SPEL)
+
+==== @Value
+[source,java]
+.Usage
+----
+@Value("#{ systemProperties['user.region'] }")
+String region; // <1>
+
+@Bean public TaxCalculator taxCalculator1() { 
+	TaxCalculator tc = new TaxCalculator(); 
+	tc.setDefaultLocale(region); // <1>
+	return tc;
+}
+
+@Bean public TaxCalculator taxCalculator2(
+			@Value("#{ systemProperties['user.region'] }") String region) { // <2>
+	TaxCalculator tc = return new TaxCalculator(); 
+	tc.setDefaultLocale(region);
+	return tc;
+}
+----
+<1> On field.
+<2> Or method argument.
+	
+[source,java]
+.Accessing beans.
+----
+class StrategyBean {
+	private KeyGenerator gen = new UuidGenerator(); 
+	public KeyGenerator getKeyGenerator() { 
+		return gen; 
+	}
+}
+
+@Configuration
+class StrategyConfig {
+	@Bean public StrategyBean strategyBean() { 
+		return new StrategyBean();
+	}
+}
+
+@Configuration
+class AnotherConfig {
+	@Value("#{strategyBean.keyGenerator}") KeyGenerator kgen;
+	...
+}
+----
+
+* EL Attributes can be:
+** Spring beans (like strategyBean)
+** Implicit references
+*** systemProperties and systemEnvironment available by default
+* SpEL allows to create custom functions and references
+
+=== Proxying
+
+[source,java]
+.Spring works with singletons.
+----
+@Bean
+public AccountRepository accountRepository() {
+	return new JdbcAccountRepository();
+}
+
+@Bean
+public TransferService transferService() {
+	TransferServiceImpl service = new TransferServiceImpl(); 	
+	service.setAccountRepository(accountRepository()); // <1>
+	return service;
+}
+
+@Bean
+public AccountService accountService() {
+	return new AccountServiceImpl( accountRepository()); // <1> 
+}
+----
+<1> Two invocations but spring makes it a single instance.
+
+Reason::
+
+* At startup time, a child class is created
+** For each bean, an instance is cached in the child class
+** Child class only calls super at first instantiation
+
+[source,java]
+.Child class is the entry point. Java Configuration uses cglib for inheritance-based proxies.
+----
+public class AppConfig$$EnhancerByCGLIB$ extends AppConfig {
+	public AccountRepository accountRepository() {
+		// if bean is in the applicationContext, then return bean
+		// else call super.accountRepository(), store bean in context, return bean
+	}
+	
+	public TransferService transferService() {
+		// if bean is in the applicationContext, then return bean
+		// else call super.transferService(), store bean in context, return bean
+	}
+}
+----
+
+
+=== Summary
+
+* Property values are easily externalized using Spring's Environment abstraction
+* Profiles are used to group sets of beans 
+* Spring Expression Language
+* Spring proxies your `@Configuration` classes to allow for scope control.

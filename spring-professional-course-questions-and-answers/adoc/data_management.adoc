@@ -1,0 +1,203 @@
+== Data Management: JDBC, Transactions, JPA, Spring Data
+
+
+What is the difference between checked and unchecked exceptions?::
+
+* *Checked Exceptions*: Must be declared in method signatures and handled the whole chain up.
+* *Unchecked Exceptions*: Can be thrown up the call hierarchy to the best place to handle it. No need to catch.
+
+
+Why do we (in Spring) prefer unchecked exceptions?::
+Intermediate methods must declare exception(s) from all methods below (form of tight-coupling). Unchecked exceptions do not have to be catched -> slighter.
+
+
+What is the data access exception hierarchy?::
+
+It hides whether you are using JPA or anything else and provides several unchecked exceptions which are consistent between different technologies.
+
+
+How do you configure a DataSource in Spring? Which bean is very useful for development/test databases?::
+
+Spring provides an `EmbeddedDatabaseBuilder` to conveniently define a new (empty) in-memory database. HSQL, H2 and Derby are supported.
+
+
+What is the Template design pattern and what is the JDBC template?::
+
+Define the outline or skeleton of an algorithm. Leave the details to specific implementations later.
+
+Hides away large amounts of boilerplate cod The JdbcTemplate provides full access to the standard JDBC constructs and handles SQLExceptions.
+
+
+What is a callback? What are the three JdbcTemplate callback interfaces described in the notes? What are they used for? (You would not have to remember the interface names in the exam, but you should know what they do if you see them in a code sample).::
+
+* `RowMapper`: Maps a single row of a ResultSet to an object and can be used for single- and multiple- row queries.
+* `RowCallbackHandler When there is no return object e.g., for streaming or conversion stuff.
+* `ResultSetExtractor`: You are responsible for iterating the ResultSet. Useful e.g. for mapping entire ResultSet to a single object.
+
+Can you execute a plain SQL statement with the JDBC template?::
+
+Yes, with the `queryFor...` or `update...` methods.
+
+Does the JDBC template acquire (and release) a connection for every method called or once per template?::
+
+Depends on the definition of the datasource. If connection pooling is activated, the template may use any connection from the pool.
+
+Is the JDBC template able to participate in an existing transaction?::
+
+No. JdbcTemplate does not provide transactions out of the box. TransactionManager has to be defined.
+
+What is a transaction? What is the difference between a local and a global transaction?::
+
+Transactions are a set of tasks which take place as a single, indivisible action. *Local Transactions* are managed by underlying resource: App ⇒ Database. *Global (distributed) Transactions* are managed by separate, dedicated transaction manager. App ⇒ TRX manager ⇒ PSQL, RabbitMQ, …​
+
+
+Is a transaction a cross cutting concern? How is it implemented in Spring?::
+
+Yes, implemented using AOP:
+. Target object wrapped in a proxy (Around advice)
+. Proxy implements the following behavior
+.. Transaction started before entering the method
+.. Commit at the end of the method
+.. Rollback if method throws a RuntimeException (default, can be overridden)
+. Transaction context bound to current thread.
+. All controlled by configuration
+
+
+How are you going to set up a transaction in Spring?::
+
+There are 3 steps: declare a PlatformTransactionManager bean and the transactional methods (annotationm, XML or programatic).
+@EnableTransactionManagement defines a BPP for @Transactional beans.
+
+
+What does @Transactional do? What is the PlatformTransactionManager?::
+
+@Transactional defines that all queries in a method will be executed in the same transaction. The PlatformTransactionManager hides implementation details.
+
+
+What is the TransactionTemplate? Why would you use it?::
+
+Template class that simplifies programmatic transaction demarcation and transaction exception handling.
+
+
+What is a transaction isolation level? How many do we have and how are they ordered?::
+
+4 levels:
+* *READ_UNCOMMITTED*: Lowest level - allows dirty reads.
+* *READ_COMMITTED*: Does not allow dirty reads (only committed information can be accessed)
+* *REPEATABLE_READ*: Does not allow dirty reads. Non-repeatable reads are prevented.
+* *SERIALIZABLE*: Prevents non-repeatable reads and dirty-reads and also phantom reads.
+
+
+What is the difference between @EnableTransactionManagement and <tx:annotation-driven>?::
+
+No difference.
+
+
+How does the JdbcTemplate support generic queries? How does it return objects and lists/maps of objects?::
+
+`query(...)`, `queryForList`, `queryForMap(...)`
+
+
+What does transaction propagation mean?::
+
+Transaction propagation is calling a @Transactional method within another @Transactional method. There are 7 levels of propagation e.g., `REQUIRED` and `REQUIRES_NEW`.
+
+
+What happens if one @Transactional annotated method is calling another @Transactional annotated method on the same object instance?::
+
+The device will not be calles twice (limitation of AOP). If you call a method with a @Transactional annotation from a method with @Transactional within the same instance, then the called methods transactional behavior will not have any impact on the transaction.
+
+Where can the @Transactional annotation be used? What is a typical usage if you put it at class level?::
+
+On class the @Transactional applies to all methods declared in the interface(s). You can also declare it on both, class- and method- level but with different settings e.g., timeouts.
+
+
+What does declarative transaction management mean?::
+
+Specify transaction behavior declaratively down to individual method level. Separates transaction demarcation from transaction implementation
+
+
+What is the default rollback policy? How can you override it?::
+
+By default, a transaction is rolled back if a RuntimeException has been thrown. Default settings can be overridden with rollbackFor and noRollbackFor attributes.
+
+
+What is the default rollback policy in a JUnit test, when you use the SpringJUnit4ClassRunner and annotate your @Test annotated method with @Transactional?::
+
+Runs the test method in a transaction and rolls back afterwards. Using the @Commit annotation, the transaction won’t be rolled back. 
+
+
+Why is the term "unit of work" so important and why does JDBC AutoCommit violate this pattern?::
+
+Some updates may belog to one common logical unit of work e.g., removing and adding an amount when transfering money. This is an all-or-nothing operation.
+
+
+What does JPA mean - what is ORM? What is the idea behind an ORM?::
+
+* *JPA (Java Persistence API)*: Designed for operating on domain objects: Pojos, no interfaces. It is a common API for object-relational mapping.
+* *ORM(Object Relational Mapping)*: Technique for converting data between incompatible type systems in object-oriented programming languages. 
+
+
+What is a PersistenceContext and what is an EntityManager. What is the relationship between both?::
+
+The EntityManager manages a unit of work and persistent objects therein: the PersistenceContext.
+
+
+Why do you need the @Entity annotation. Where can it be placed?::
+
+The @Entity annotation marks an entity object which is mapped to a table. Optionally define table name. To be plasses on class-level.
+
+
+What do you need to do in Spring if you would like to work with JPA?::
+
+. Define an `EntityManagerFactory` bean.
+. Define a `DataSource` bean
+. Define a `TransactionManager` bean
+. Define Mapping Metadata
+. Define DAOs
+
+
+Are you able to participate in a given transaction in Spring while working with JPA?::
+
+Yes. Transparently participate in Spring-driven transactions:
+* Use a Spring FactoryBean for building the EntityManagerFactory
+* Inject an EntityManager reference with @PersistenceContext
+
+
+What is the PlatformTransactionManager?::
+
+Spring’s PlatformTransactionManager is the base interface for the abstraction of the transaction strategy.
+
+
+What does @PersistenceContext do?::
+
+Inject an EntityManager reference with @PersistenceContext.
+
+
+What are disadvantages or ORM? What are the benefits?::
+
++ Allows converting data between incompatible type systems.
++ Transaction management
++ Hides technologies
+- Performance overhead
+
+
+What is an "instant repository"? (hint: recall Spring Data)::
+
+Spring Data provides "instant" repositories. Define a "CrudRepository" and Spring Data will automatically inject a backing implementation and add common CRUD methods.
+
+
+How do you define an “instant” repository?::
+
+Simply extend the `CrudRepository<...,...>` interface. No need to specify any method. Standard methods will be provided.
+
+
+What is @Query used for?::
+
+Used to define a custom query for repository methods e.g.,
+
+[source,java]
+----
+@Query("select u from User u where u.firstname like %?1")
+List<User> findByFirstnameEndsWith(String firstname);
+----

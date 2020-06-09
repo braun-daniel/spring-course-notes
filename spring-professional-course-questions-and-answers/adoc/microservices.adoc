@@ -1,0 +1,64 @@
+== Microservices
+
+
+What is a microservices architecture?::
+
+Microservice architecture is a method of developing software applications as a suite of *independently deployable*, *small*, *modular* services in which each service runs a unique process and *communicates through a well-defined, lightweight mechanism* to serve a business goal.
+
+
+What are the advantages and disadvantages of microservices?::
+
+- Harder to build
+- Network overhead
++ Better maintainability and extensibility
++ Scaling out easier
+
+
+What sub-projects of Spring Cloud did we cover in the course? Spring Cloud is a large umbrella project – only what we covered in the course will be tested.::
+
+* Spring Cloud Netflix (Service Discovery, Load Balancing)
+* Spring Cloud Config (Dynamic Reconfiguration)
+* Spring Cloud Connectors (Iaas Integration)
+* Spring Cloud Security (Utility)
+* Spring Cloud CLI (Utility)
+* Spring Cloud Data Flow (Data Integration)
+
+
+Would you recognize the Spring Cloud annotations and configuration we used in the course if you saw it in the exam?::
+
+* `@EnableEurekaServer`: Eureka service registry.
+* `@EnableDiscoveryClient`: Service implementation.
+* `@LoadBalanced`: On a rest template to inject a smart, load-balanced template.
+
+
+What Netflix projects did we use?::
+
+* Eureka (Service Discovery)
+* Ribbon (Load-Balancer)
+
+
+What is Service Discovery? How is this related to Eureka?::
+
+Service Discovery describes the dynamic lookup of service consumers at a common registry.
+Eureka itself is a service registry, implemented by Netflix.
+
+
+How do you setup Service Discovery?::
+
+Using the `@EnableDiscoveryClient` annotation and a service discovery configuration e.g.,
+
+[source,yaml]
+----
+spring:
+	application:
+		name: accounts-microservice
+eureka:
+	client:
+ 		serviceUrl:
+			defaultZone: http://localhost:8761/eureka/
+----
+
+
+How do you access a RESTful microservice?::
+
+`@EnableDiscoveryClient` injects a smart rest template that accessed the relevant service through a URL.

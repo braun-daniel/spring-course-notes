@@ -1,0 +1,49 @@
+= Spring Professional: Course Summary
+:toc: left
+:author: Daniel Kojic
+:email: dan.kojic@gmail.com
+:toclevels: 2
+:description: Summary of the Spring Professional Course.
+:keywords: Spring, Course, Professional
+:library: Asciidoctor
+:sectlinks: 1
+:numbered:
+:imagesdir: ./img
+:includedir: ./adoc
+:sourcedir: ./src
+:source-highlighter: prettify
+:linkcss:
+
+include::{includedir}/introduction.adoc[]
+
+include::{includedir}/dependency_injection.adoc[]
+
+include::{includedir}/annotations.adoc[]
+
+include::{includedir}/bean_lifecycle.adoc[]
+
+include::{includedir}/testing_spring_application.adoc[]
+
+include::{includedir}/aop.adoc[]
+
+include::{includedir}/data_access.adoc[]
+
+include::{includedir}/jdbc.adoc[]
+
+include::{includedir}/db_transactions.adoc[]
+
+include::{includedir}/orm.adoc[]
+
+include::{includedir}/jpa.adoc[]
+
+include::{includedir}/web_application_architecture.adoc[]
+
+include::{includedir}/rest.adoc[]
+
+include::{includedir}/spring_mvc.adoc[]
+
+include::{includedir}/spring_boot.adoc[]
+
+include::{includedir}/spring_security.adoc[]
+
+include::{includedir}/microservices_and_cloud.adoc[]

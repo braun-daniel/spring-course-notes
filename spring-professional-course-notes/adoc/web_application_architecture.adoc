@@ -1,0 +1,98 @@
+== Spring Web
+
+[.lead]
+Developing Modern Web Applications: Servlet Configuration, Product Overview
+
+
+=== Introduction
+
+Spring provides support in the Web layer (Spring MVC, Spring WebFlow, ...) and *integrates well* with any Java web framework.
+
+=== Using Spring in Web Applications
+
+* Spring can be initialized within a webapp.
+** start up business services, repositories, etc.
+* Uses a standard servlet listener.
+** Initialization occurs befire any servlets execute.
+** application ready for user requests.
+** ApplicationContext.close() is called when the application is stopped.
+* Configuration either via. WebApplicationInitializer or web.xml (see <<web-application-initializer>> and <<web-xml-initializer>>)
+
+[[web-application-initializer]]
+[source,java]
+.Configuration via. WebApplicationInitializer.
+----
+public class MyWebAppInitializer extends AbstractContextLoaderInitializer {
+
+	@Override
+	protected WebApplicationContext createRootApplicationContext() {
+		// Create the 'root' Spring application context
+		AnnotationConfigWebApplicationContext rootContext 
+				= new AnnotationConfigWebApplicationContext();
+		rootContext.getEnvironment().setActiveProfiles("jpa"); // optional 
+		rootContext.register(RootConfig.class);
+		return rootContext;
+	}
+}
+----
+
+[[web-xml-initializer]]
+[source,xml]
+.Configuration via. web.xml.
+----
+<context-param>
+	<param-name>contextConfigLocation</param-name> 
+	<param-value>/WEB-INF/merchant-reporting-webapp-config.xml</param-value>
+</context-param>
+<listener> 
+	<listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+</listener>
+----
+
+.Servlet container after starting up.
+image::servlet_container_after_startup.png[width=700,align="center"]
+
+.Override `onStartup()` method to define servlets. You cannot access spring beans yet.
+[source,java]
+----
+public class MyWebAppInitializer extends AbstractContextLoaderInitializer {
+	protected WebApplicationContext createRootApplicationContext() { 
+		// ...Same configuration.
+   }
+
+	public void onStartup(ServletContext container) { 
+		super.onStartup(container);
+		// Register and map a servlet 
+		ServletRegistration.Dynamic svlt = container.addServlet(
+				"myServlet", 
+				new TopSpendersReportGenerator()); 		
+		svlt.setLoadOnStartup(1);
+		svlt.addMapping("/");
+}
+----
+
+* Dependency Injection of Servlets
+** Suitable for web.xml or AbstractContextLoaderInitializer
+** Use `WebApplicationContextUtils` to get the Spring ApplicationContext via ServletContext.
+* Spring MVC Supports Dependency Injection
+
+
+=== Overview of Spring Web
+
+* Spring MVC
+** Web framework bundled with Spring
+* Spring WebFlow
+** Plugs into Spring MVC
+** Implements navigation flows 
+* Spring Mobile
+** Routing between mobile / non-mobile versions of site 
+* Spring Social
+** Easy integration with Facebook, Twitter, etc.
+
+
+=== Summary
+
+* Spring can be used with any web framework
+** Spring provides the ContextLoaderListener that can be declared in web.xml
+* Spring MVC is a lightweight web framework where controllers are Spring beans
+* WebFlow plugs into Spring MVC as a Controller technology for implementing stateful "flows"

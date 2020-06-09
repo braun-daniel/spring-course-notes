@@ -1,0 +1,197 @@
+== JDBC
+
+[.lead]
+Using the JDBC Template.
+
+
+=== Problems with traditional JDBC 
+Traditional JDBC means *redundant, error prone* code with *poor exception handling*.
+
+
+=== Spring’s JdbcTemplate
+
+JDBC Template Responsibilities::
+* Acquisition/release of the connection 
+* Transaction management
+* Execution of the statement 
+* Processing of the result set 
+* Handling any exceptions
+
+Greatly simplifies use of the JDBC API. Eliminates repetitive boilerplate code, hence alleviating a common causes of bugs. It also handles SQLExceptions properly without sacrificing power. It provides full access to the standard JDBC constructs.
+
+Creating a JdbcTemplate requires a *datasource*. Once instantiated, *reuse* it. It can query *simple types, generic maps and domain objects*.
+
+[source,java]
+.JDBC template example.
+----
+public class JdbcCustomerRepository implements CustomerRepository {
+
+	private JdbcTemplate jdbcTemplate;
+	
+	public JdbcCustomerRepository(DataSource dataSource) { 
+		this.jdbcTemplate = new JdbcTemplate(dataSource);
+	}
+
+	public int getCustomerCount() {
+		String sql = “select count(*) from customer”;
+		return jdbcTemplate.queryForObject(sql, Integer.class); // <1>
+	}
+
+	public int getCountOfNationalsOver(Nationality nationality, int age) { 
+		String sql = “select count(*) from PERSON ” +	
+				“where age > ? and nationality = ?”;
+		return jdbcTemplate.queryForObject(sql, Integer.class, age, nationality.toString()); // <2>
+	}
+}
+----
+<1> Throws unchecked exceptions only.
+<2> Bind variables.
+
+
+=== Query Execution
+
+
+==== Generic Queries
+
+JdbcTemplate returns each row of a ResultSet as a Map. When expecting a single row, use `queryForMap(..)`. Use `queryForList(..)` for multiple rows. The data fetched does not need mapping to a Java object. Be careful with very large data-sets.
+
+==== Querying Generic Maps
+
+[source,java]
+.Query for a single row. Returns a map of _column name|value_ pairs.
+----
+public Map<String,Object> getPersonInfo(int id) { 
+	String sql = “select * from PERSON where id=?”; 
+	return jdbcTemplate.queryForMap(sql, id);
+}
+----
+
+[source,java]
+.Query for multiple rows. Returns a list of maps of _column name|value_ pairs.
+----
+public Map<String,Object> getPersonInfo(int id) { 
+	String sql = “select * from PERSON where id=?”; 
+	return jdbcTemplate.queryForMap(sql, id);
+}
+----
+
+
+==== Querying Domain Objects
+
+Spring allows mapping relational data into domain objects e.g., a ResultSet to an Account using a callback approach. You may prefer to use ORM for this (JdbcTemplate vs. JPA or similar mappings). Some tables may be too hard to map with JPA.
+
+
+==== Working with result sets
+
+RowMapper::
+Maps a single row of a ResultSet to an object and can be used for single- and multiple- row queries.
+
+[source,java]
+----
+public Person getPerson(int id) { 
+	return jdbcTemplate.queryForObject(“select first_name, 
+			last_name from PERSON where id=?”, 
+			new PersonMapper(), 
+			id); 
+}
+
+...
+
+class PersonMapper implements RowMapper<Person> {
+	public Person mapRow(ResultSet rs, int rowNum) throws SQLException {
+		return new Person(rs.getString("first_name"), 
+				rs.getString("last_name"));
+	} 
+}
+----
+
+RowCallbackHandler::
+* Spring provides a simpler RowCallbackHandler interface when there is no return object
+** Streaming rows to a file
+** Converting rows to XML
+** Filtering rows before adding to a Collection (filtering in SQL is much more efficient)
+** Faster than JPA equivalent for big queries (avoids result-set to object mapping)
+
+[source,java]
+----
+public class JdbcOrderRepository {
+	
+	public void generateReport(Writer out) {
+		// select all orders of year 2009 for a full report 
+		jdbcTemplate.query(“select * from order where year=?”,
+				new OrderReportWriter(out), 2009);
+	}
+}
+
+class OrderReportWriter implements RowCallbackHandler { 
+
+	public void processRow(ResultSet rs) throws SQLException {
+		// parse current row from ResultSet and stream to output 
+	}
+}
+----
+
+ResultSetExtractor::
+Spring provides a ResultSetExtractor interface for processing an entire ResultSet at once. You are responsible for iterating the ResultSet. Useful e.g. for mapping entire ResultSet to a single object.
+
+[source,java]
+----
+public class JdbcOrderRepository {
+
+	public Order findByConfirmationNumber(String number) {
+		// execute an outer join between order and item tables
+		return jdbcTemplate.query(“select...from order o, item i...conf_id = ?”, 
+				new OrderExtractor(), number);
+	}
+}
+
+class OrderExtractor implements ResultSetExtractor<Order> { 
+	
+	public Order extractData(ResultSet rs) throws SQLException {
+		Order order = null; 
+		while (rs.next()) {
+			if (order == null) {
+				order = new Order(rs.getLong("ID"), rs.getString("NAME"), ...);
+			}
+			order.addItem(mapItem(rs)); 
+		}
+		return order; 
+	}
+}
+----
+
+==== Summary of Callback Interfaces
+
+RowMapper::
+Best choice when each row of a ResultSet maps to a domain object.
+RowCallbackHandler::
+Best choice when no value should be returned from the callback method for each row.
+ResultSetExtractor::
+Best choice when multiple rows of a ResultSet map to a single object.
+
+
+=== Inserts and Updates
+
+[source,java]
+----
+public int insertPerson(Person person) { 
+	return jdbcTemplate.update( // <1>
+			“insert into PERSON (first_name, last_name, age) values (?, ?, ?)”,
+			person.getFirstName(),
+			person.getLastName(),
+			person.getAge();
+}
+
+public int updateAge(Person person) { 
+	return jdbcTemplate.update(
+			“update PERSON set age=? where id=?”, 
+			person.getAge(),
+			person.getId());
+}
+----
+<1> Update method returns number of rows modified.
+
+
+=== Exception handling
+
+The JdbcTemplate transforms SQLExceptions into `DataAccessExceptions`.

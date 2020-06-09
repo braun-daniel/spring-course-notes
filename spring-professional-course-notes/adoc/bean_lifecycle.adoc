@@ -1,0 +1,97 @@
+== Bean Lifecycle
+
+[.lead]
+Using Bean Pre- and Post-Processors.
+
+=== Introduction
+
+Initialization -> Use -> Destruction
+
+Initialization::
+* Prepares for use
+* Application services
+** Are created
+** Configured
+** May allocate system resources
+* Application is not usable until this phase is complete
+Use::
+* Used by clients
+* Application services
+** Process client requests
+** Carry out application behaviors
+* 99.99% of the time is spent in this phase
+Destruction::
+* Shuts down
+* Application services
+** Release any systemresources
+** Are eligible for garbage collection
+
+=== The initialization phase 
+
+When `SpringApplication.run(...)` returns the initialization phase completes.
+
+[[bean_init]]
+.Bean initialization steps
+image::bean_initialization.png[]
+
+==== Load Bean Definitions
+
+The @Configuration classes are processed: *@Components are scanned and/or XML files parsed*. Bean definitions added to BeanFactory under its id. Then `BeanFactoryPostProcessor` beans get invoked. These may change any bean definition.
+
+[IMPORTANT]
+=====================================================================
+BeanFactoryPostProcessor Extension Point::
+* Applies transformations to bean definitions 
+** Before objects are actually created
+* Several useful implementations provided in Spring
+** Reading properties, registering a custom scope ...
+* You can write your own.
+** Implement `BeanFactoryPostProcessor` interface
+=====================================================================
+
+==== Initialize Bean Instances
+
+Each bean is *eagerly instantiated* by default in *right order* with its *dependencies injected*.
+After dependency injection each bean is post-processed (further configured and initialized. After post processing the bean is fully initialized and ready for use.
+
+There are *two types of bean post processors*: Initializers & the rest. Initializers call init methods e.g., @PostConstruct and init-method. All others can be used for additional configuration and may run *before or after the initialize step*.
+
+[IMPORTANT]
+=====================================================================
+BeanPostProcessor Extension Point::
+* An important extension point in Spring
+** Can modify bean instances in any way
+** Powerful enabling feature
+* Spring provides several implementations
+** You can write your own (not common)
+** Must implement the `BeanPostProcessor` interface
+=====================================================================
+
+[[config_lifecycle]]
+.Configuration lifecycle.
+image::config_lifecycle.png[]
+
+=== The use phase
+
+When you invoke a bean obtained from the context the application is used. Beans get *wrapped in  dynamic proxys* which are created in the init phase by dedicated BeanPostProcessors. Spring will create two kinds of proxys: *JDK* and *CGLib* Proxies.
+
+image::proxies.png[]
+
+JDK Proxy (Interface based):: (Recommended)
+* Also called dynamic proxies
+* API is built into the JDK
+* Requirements: Java interface(s)
+* All interfaces proxied
+
+//^
+
+CGLib Proxy (Subclass based)::
+* NOT built into JDK
+* Included in Spring jars
+* Used when interface not available
+* Cannot be applied to final classes or methods
+
+
+=== The destruction phase
+
+When you close a context the destruction phase completes. Bean instances get destroyed by invoking their clean-up/destroy methods if the JVM exits normally. After closing, the context itself will no longer be usable.

@@ -1,0 +1,199 @@
+== Data Access
+
+[.lead]
+Implementing Data Access and Caching.
+
+
+=== The Role of Spring in Enterprise Data Access
+
+Works consistently with leading data access technologies. Resource management usually requires access (establishing or closing a connection) or transaction management. Spring manages this with *no additional code*, *prevents session leakage*, and *throws own exceptions*, independent from the underlying api. Transaction management can be done in a simple, declarative way.
+
+Template Design Pattern http://en.wikipedia.org/wiki/Template_method_pattern[link]::
+* Define the outline or skeleton of an algorithm
+** Leave the details to specific implementations later
+** Hides away large amounts of boilerplate code
+* Spring provides many template classes 
+** JdbcTemplate
+** JmsTemplate
+** RestTemplate
+** WebServiceTemplate
+
+
+==== Declarative Transaction Management
+
+Every thread needs its own transaction. Spring's transaction manager handles these within the *thread-local storage*. Data-access code, like JdbcTemplate, finds it automatically or do it yourself: `DataSourceUtils.getConnection(dataSource)`.
+
+image::trx_management.png[]
+
+Many enterprise applications consist of three logical layers.
+
+Service Layer (or application layer)::
+Exposes high-level application functions. Use-cases and business logic is defined here.
+Data access Layer::
+Defines interface to the application’s data repository (such as a Relational or NoSQL database).
+Infrastructure Layer::
+Exposes low-level services to the other layers.
+
+
+=== Spring's DataAccessExceptionHierarchy 
+
+
+Checked Exceptions::
+* Force developers to handle errors. But if you can't handle it, must declare it.
+* *Bad*: Intermediate methods must declare exception(s) from all methods below (form of tight-coupling).
+Unchecked Exceptions::
+* Can be thrown up the call hierarchy to the best place to handle it.
+* *Good*: Methods in between don't know about it.
+** BetterinanEnterpriseApplication
+* Spring throws Runtime (unchecked) Exceptions
+
+*SQLExceptions* are *too general*. There is only one exception for every database error. Calling class 'knows' you are using JDBC (tight coupling). Spring provides the `DataAccessException` hierarchy. It *hides* whether you are using JPA or anything else and provides several *unchecked* exceptions which are consistent between different technologies.
+
+.Spring Data Access Exceptions.
+image::data_access_ex_hierarchy.png[]
+
+
+=== Using Test Databases
+
+Spring provides an *Embedded Database Builder* to conveniently define a new *(empty) in-memory database*. HSQL, H2 and Derby are supported.
+
+[source,java]
+.In java...
+----
+@Bean
+public DataSource dataSource() {
+
+	EmbeddedDatabaseBuilder builder = new EmbeddedDatabaseBuilder(); 
+	return builder.setName("testdb")
+			.addScript("classpath:/testdb/schema.db") 
+			.addScript("classpath:/testdb/test-data.db").build();
+}
+----
+
+[source,xml]
+.and xml possible.
+----
+<bean class=“example.order.JdbcOrderRepository” >
+	<property name=“dataSource” ref=“dataSource” />
+</bean>
+
+<jdbc:embedded-database id=“dataSource” type=“H2”> 
+	<jdbc:script location=“classpath:schema.sql” />
+	<jdbc:script location=“classpath:test-data.sql” />
+</jdbc:embedded-database>
+----
+
+[source,xml]
+.Also allows populating other (existing) data sources.
+----
+<bean id=“dataSource” class=“org.apache.commons.dbcp.BasicDataSource”> 
+	<property name=“url” value=“${dataSource.url}” />
+	<property name=“username” value=“${dataSource.username}” />
+	<property name=“password” value=“${dataSource.password}” />
+</bean>
+
+<jdbc:initialize-database data-source=“dataSource”> 
+	<jdbc:script location=“classpath:schema.sql” /> // <1>
+	<jdbc:script location=“classpath:test-data.sql” />
+</jdbc:initialize-database>
+----
+<1> Initializes an external database.
+
+[source,java]
+.Also in java.
+----
+@Configuration
+public class DatabaseInitializer {
+	@Value("classpath:schema.sql") 
+	private Resource schemaScript; 
+
+	@Value("classpath:test-data.sql") 
+	private Resource dataScript;
+
+	private DatabasePopulator databasePopulator() { 
+		final ResourceDatabasePopulator populator = new ResourceDatabasePopulator(); 		
+		populator.addScript(schemaScript);
+		populator.addScript(dataScript); 
+		return populator;
+	}
+
+	@Bean
+	public DataSourceInitializer anyName(final DataSource dataSource) { 
+		final DataSourceInitializer initializer = new DataSourceInitializer(); 		
+		initializer.setDataSource(dataSource); 
+		initializer.setDatabasePopulator(databasePopulator()); // <1>
+		return initializer; 
+	}
+----
+<1>  Explicitly create a database initializer which will do the work in its post-construct method.
+
+
+=== Implementing Caching
+
+A cache is a key-value store (map) and can be applied to methods often returning the same value for equal inputs. A unique key (cache key) must be generated from the arguments.
+
+Spring transparently applies caching to Spring beans (AOP). Just mark methods `@Cacheable`, provide a  caching key(s) and the name of cache to use (multiple caches supported, define in spring config). Enable caching via. `@EnableCaching` or `<cache:annotation-driven />`. You will also have to *specify a cache-manager* (some provided in `org.springframework.cache`). Consider 3rd party cache-managers like ehCache or Gemfire.
+
+[source,java]
+.In-memory cache.
+----
+@Cacheable
+public Country[] loadAllCountries() { ... }
+----
+
+[source,java]
+.Implementing a custom cache-manager: a concurrent map cache.
+----
+@Bean
+public CacheManager cacheManager() {
+	SimpleCacheManager cmgr = new SimpleCacheManager(); 
+	Set<Cache> caches = new HashSet<Cache>(); 
+	caches.add(new ConcurrentMapCache("topAuthors")); 
+	caches.add(new ConcurrentMapCache("topBooks")); 
+	cmgr.setCaches(caches);
+	return cmgr;
+}
+----
+
+`@Cacheable` marks a method for caching its result is stored in a cache. Subsequent invocations (with the same arguments) fetch data from cache using key (method not executed).The `key` for each cached data-item uses SpEL and argument(s) of method.
+
+[source,java]
+----
+public class BookService {
+
+	@Cacheable(value="topBooks", key="#title", condition="#title.length < 32") // <1>
+	public Book findBook(String title, boolean checkWarehouse) { ... } 
+	
+	@Cacheable(value="topBooks", key="#author.name") // <2>
+	public Book findBook2(Author author, boolean checkWarehouse) { ... } 
+	
+	@Cacheable(value="topBooks", key="T(example.KeyGen).hash(#author)") // <3>
+	public Book findBook3(Author author, boolean checkWarehouse) { ... } 
+
+	@CacheEvict(value="topBooks") // <4>
+	public void loadBooks() { ... } 
+	
+	...
+}
+----
+<1> Only cache if condition true.
+<2> Use object property.
+<3> Custom key generator.
+<4> Clear cache before method invoked.
+
+
+=== NoSQL databases
+
+Spring does not only support SQL databases. It supports many more such as document-based, graph-based, big-data and column stores.
+
+
+=== Summary
+
+* Enables layered architecture principles
+** Higher layers should not know about data management below
+* Isolate via Data Access Exceptions
+** Hierarchy makes them easier to handle
+* Provides consistent transaction management
+** Supports most leading data-access technologies Relational and non-relational (NoSQL)
+* A key component of the core Spring libraries
+* Automatic caching facility

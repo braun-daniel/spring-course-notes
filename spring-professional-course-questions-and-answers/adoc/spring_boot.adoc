@@ -1,0 +1,75 @@
+== Spring Boot
+
+
+What is Spring Boot?::
+
+An opinionated runtime for Spring Projects which handles most low-level setup with support for different project types like web and batch.
+
+
+What are the advantages of using Spring Boot?::
+
+Easy to create Spring-powered, production-grade applications and services with minimum fuss. Provides embedded server and auto configuration capabilities.
+
+
+Why is it “opinionated”?::
+
+Spring Boot uses sensible defaults, “opinions”, mostly based on the classpath contents.
+
+
+How does it work? How does it know what to configure?::
+
+Checks contents of the classpath.
+
+
+What things affect what Spring Boot sets up?::
+
+?
+
+
+How are properties defined? Where?::
+
+Porperties are defined by dependencies e.g., `spring-boot-starter-parent` or the `application.properties` in the classpath root.
+
+
+Would you recognize common Spring Boot annotations and configuration properties if you saw them in the exam?::
+
+Common annotations:
+* @SpringBootApplication
+* @EnableAutoConfiguration
+
+
+What is the difference between an embedded container and a WAR?::
+
+JAR: Executable JAR file with an embedded container.
+WAR: Output WAR files and deploy it in any other servlet container.
+
+
+What embedded containers does Spring Boot support?::
+
+Tomcat & Jetty.
+
+What does @EnableAutoConfiguration do? What about @SpringBootApplication?::
+
+* `@EnableAutoConfiguration`: Causes Spring Boot to automatically create beans it thinks you need, usually based on classpath contents. 
+* `@SpringBootApplication`: Aggregates `@EnableAutoConfiguration`, `@Configuration`, and `@ComponentScan`.
+
+
+What is a Spring Boot starter POM? Why is it useful?::
+
+Starter POMs declare the properties to use. It resolves a lot of jars and no Version is needed as it is defined by the parent to ensure compatibility.
+
+
+Spring Boot supports both Java properties and YML files. Would you recognize and understand them if you saw them?::
+
+-
+
+
+Can you control logging with Spring Boot? How?::
+
+Yes, via. the `application.properties`. 
+
+----
+logging.level.root=WARN
+logging.level.org.springframework.web=DEBUG
+logging.level.org.hibernate=ERROR
+----

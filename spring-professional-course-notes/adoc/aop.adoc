@@ -1,0 +1,308 @@
+== Aspect Oriented Programming (AOP)
+
+[.lead]
+Using and Implementing Spring Proxies.
+
+
+=== What Problem Does AOP Solve?
+
+Aspect-Oriented Programming (AOP) enables *modularization* of *cross-cutting concerns*. An example requirement could be:
+
+> Perform a role-based security check before *every* application method.
+
+Cross-Cutting Concern:: 
+Generic functionality that is needed in many places in your application e.g., 
+Logging and Tracing, Transaction Management, Security, Caching, Error Handling, Performance Monitoring, Custom Business Rules.
+
+Failing to modularize cross-cutting concerns leads to two things: *Code tangling* (coupling of concerns) and *Code scattering* (the same concern spread across modules => code duplication).
+
+[source,java]
+.Tangling example.
+----
+public class RewardNetworkImpl implements RewardNetwork { 
+
+	public RewardConfirmation rewardAccountFor(Dining dining) {
+		if (!hasPermission(SecurityContext.getPrincipal()) { 
+			throw new AccessDeniedException(); // <1>
+		}
+		
+		Account a = accountRepository.findByCreditCard(...); // <1>
+	 	Restaurant r = restaurantRepository.findByMerchantNumber(...)
+		MonetaryAmount amt = r.calculateBenefitFor(account, dining); 
+		...
+	}
+}
+
+----
+<1> Mixed concerns.
+
+image::tangling_vs_scattering.png[]
+
+
+==== How AOP works
+
+Implement your mainline application logic::
+* Focusing on the core problem
+Write aspects to implement your cross-cutting concerns::
+* Spring provides many aspects out-of-the-box
+Weave your aspects into the application::
+* Adding the cross-cutting behaviours to the right places
+
+
+==== AspectJ vs. Spring AOP
+
+AspectJ::
+A full-blown Aspect Oriented Programming language. Uses byte code modification for aspect weaving.
+Spring AOP::
+Java-based AOP framework with AspectJ integration. Uses dynamic proxies for aspect weaving. Focuses on using AOP to solve enterprise problems.
+
+
+=== Core AOP Concepts 
+
+Join Point::
+A point in the execution of a program such as a method call or exception thrown.
+
+Pointcut::
+An expression that selects one or more Join Points.
+
+Advice::
+Code to be executed at each selected Join Point.
+
+Aspect::
+A module that encapsulates pointcuts and advice.
+
+Weaving::
+Technique by which aspects are combined with main code.
+
+
+=== Quick Start
+
+Lets consider this simple requirement:
+
+> Log a message every time a property is about to change.
+
+[source,java]
+.Define the aspect.
+----
+@Aspect
+@Component
+public class PropertyChangeTracker {
+	
+	private Logger logger = Logger.getLogger(getClass());
+	
+	@Before(“execution(void set*(*))”)
+	public void trackChange(JointPoint point) {  // <1>
+		String name = point.getSignature().getName(); 
+		Object newValue = point.getArgs()[0]; 
+		logger.info(name + “ about to change to ” + newValue + “ on ” + point.getTarget());
+	}
+}
+----
+<1> Context information on the intercepted point.
+
+[source,java]
+.Then configure the aspect as a Bean.
+----
+@Configuration
+@EnableAspectJAutoProxy // <1>
+@ComponentScan(basePackages=“com.example”) 
+public class AspectConfig {...}
+----
+<1> Configures Spring to apply @Aspect to you beans. XML: `<aop:aspectj-autoproxy />`
+
+[source,java]
+.Include aspect configuration.
+----
+@Configuration 
+@Import(AspectConfig.class) // here
+public class MainConfig{
+	
+	@Bean
+	public Cache cacheA() { return new SimpleCache(“cacheA”); } 
+	
+	@Bean
+	public Cache cacheB() { return new SimpleCache(“cacheB”); }
+	
+	@Bean
+	public Cache cacheC() { return new SimpleCache(“cacheC”); }
+}
+----
+
+[source,java]
+.And then test it.
+----
+@Autowired 
+@Qualifier(”cacheA”); 
+private Cache cache;
+...
+cache.setCacheSize(2500); // <1>
+----
+<1> `INFO: setCacheSize about to change to 2500 on cacheA`
+
+image::aspect_flow.png[]
+
+
+=== Defining Pointcuts
+
+Spring AOP uses a *subset* of AspectJ’s http://www.eclipse.org/aspectj/docs.php[pointcut expression language] for selecting where to apply advice.
+
+
+==== Common Pointcut Designator
+* execution(<method pattern>)
+** The method must match the pattern
+* Can chain together to create composite pointcuts 
+** && (and), || (or), ! (not)
+* Method Pattern
+** `[Modifiers] ReturnType [ClassType] MethodName ([Arguments]) [throws ExceptionType]`
+
+
+==== Examples
+
+image::pel_example1.png[]
+
+`execution(void send*(String))`::
+Any method starting with send that takes a single String parameter and has a void return type.
+
+`execution(* send(*))`::
+Any method named send that takes a single parameter
+
+`execution(* send(int, ..))`::
+Any method named send whose first parameter is an int (the “..” signifies 0 or more parameters may follow)
+
+`execution(void example.MessageServiceImpl.*(..))`::
+Any visible void method in the MessageServiceImpl class. Will fail if a different implementation is used
+
+`execution(void example.MessageService.send(*))`::
+Any void send method taking one argument, in any object of type MessageService (including sub-classes or implementations of MessageService). More flexible choice – still works if implementation changes 
+
+`execution(@javax.annotation.security.RolesAllowed void send*(..))`::
+Any void method starting with send that is annotated with the @RolesAllowed annotation
+
+`execution(* rewards.\*.restaurant.*.*(..))`::
+There is one directory between rewards and restaurant 
+
+`execution(* rewards..restaurant.*.*(..))`::
+There may be several directories between rewards and restaurant
+
+`execution(* \*..restaurant.*.*(..))`::
+Any sub-package called restaurant
+
+
+=== Implementing Advice
+
+There are different types of advices: @Before, @AfterReturning, @AfterThrowing, @After, and @Around.
+
+
+==== @Before
+
+Proxy => BeforeAdvice => Target
+
+[source,java]
+----
+@Aspect
+public class PropertyChangeTracker {
+	
+	private Logger logger = Logger.getLogger(getClass());
+
+	@Before(“execution(void set*(*))”) 
+	public void trackChange() {
+		logger.info(“Property about to change...”); 
+	}
+}
+----
+
+WARNING: If the advice throws an exception, target will not be called.
+
+
+==== @AfterReturning
+
+Proxy => Target(success) => AfterAdvice
+
+[source,java]
+.Audit all operations in the service package that return a Reward object.
+----
+@AfterReturning(value=“execution(* service..*.*(..))”, returning=“reward”)
+public void audit(JoinPoint jp, Reward reward) { 
+	auditService.logEvent(jp.getSignature() + “ returns the following reward object :” + reward.toString() ); 
+}
+----
+
+
+==== @AfterThrowing
+
+Proxy => Target (exception thrown) => AfterThrowingAdvice
+
+[source,java]
+.Send an email every time a Repository class throws an exception of type DataAccessException.
+----
+@AfterThrowing(value=“execution(* *..Repository.*(..))”, throwing=“e”)
+public void report(JoinPoint jp, DataAccessException e) {
+	mailService.emailFailure(“Exception in repository”, jp, e); 
+}
+----
+
+The @AfterThrowing advice will not stop the exception from propagating but it can throw a *different type of exception*.
+
+NOTE: If you wish to stop the exception from propagating any further, you can use an @Around advice.
+
+
+==== @After
+
+Proxy => Target (successful or exception) => AfterAdvice
+
+Called regardless of whether an exception has been thrown by the target or not.
+
+[source,java]
+.Tracks calls to all update methods.
+----
+@Aspect
+public class PropertyChangeTracker {
+
+	private Logger logger = Logger.getLogger(getClass());
+	
+	@After(“execution(void update*(..))”)
+	public void trackUpdate() {
+		logger.info(“An update has been attempted ...”);
+	}
+}
+----
+
+
+==== @Around
+
+Proxy => AroundAdvice => Target => AroundAdvice
+
+Provides a `ProceedingJoinPoint` parameter. Inherits from JoinPoint and adds the proceed() method.
+
+----
+@Around(“execution(@example.Cacheable * rewards.service..*.*(..))”) 
+public Object cache(ProceedingJoinPoint point) throws Throwable {
+	
+	Object value = cacheStore.get(cacheKey(point)); 
+	
+	if (value == null) { // <1>
+		value = point.proceed();
+		cacheStore.put(cacheKey(point), value); 
+	}
+	
+	return value;
+----
+<1> Proceed only if not already cached.
+
+
+==== Limitations
+
+* Can only advise non-private methods
+* Can only apply aspects to Spring Beans
+* Limitations of weaving with proxies
+** When using proxies, suppose method a() calls method b() on the same class/interface
+*** advice will never be executed for method b()
+
+
+==== Summary
+
+* Aspect Oriented Programming (AOP) modularizes cross-cutting concerns. 
+* An aspect is a module containing cross-cutting behavior.
+** Behavior is implemented as “advice”
+** Pointcuts select where advice applies
+** Five advice types: Before, AfterThrowing, AfterReturning, After and Around

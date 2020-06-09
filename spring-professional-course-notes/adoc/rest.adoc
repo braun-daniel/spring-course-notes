@@ -1,0 +1,184 @@
+== REST
+
+[.lead]
+REpresentational State Transfer
+
+=== REST introduction
+
+General::
+* Web apps not just usable by browser clients.
+* REST is an architectural style that describes best practices to expose web services over HTTP.
+
+//^
+
+Principles::
+* Expose resources through URIs.
+* Resources support limited set of operations.
+** GET, PUT, POST, DELETE in case of HTTP.
+** All have well-defined semantics.
+* Clients can request particular representation.
+** Resources can support multiple representations.
+** HTML, XML, JSON, ...
+* Representations can link to other resources.
+** Allows for extensions and discovery, like with web sites
+* Rest extended: Hypermedia As The Engine of Application State (HATEOAS)
+* Stateless architecture
+** No HttpSession usage
+** GETs can be cached on URL
+** Requires clients to keep track of state
+** Part of what makes it scalable
+** Looser coupling between client and server
+* HTTP headers and status codes communicate result to clients.
+** All well-defined in HTTP Specification.
+
+//^
+
+Benefits::
+* Every platform/language supports HTTP.
+* Scalability.
+* Support for redirect, caching, different representations, resource identification, ...
+* Support for multiple formats e.g., XML.
+
+
+=== REST and Java
+
+General::
+* Spring-MVC provides REST support as well.
+* RestTemplate for building programmatic clients in Java.
+* Single web-application for everything.
+
+=== Spring MVC support for RESTful applications
+
+
+==== Request/Response Processing
+
+Request Mapping based on HTTP Method::
+* Can map HTTP requests based on method
+* Allows same URL to be mapped to multiple methods
+* Often used for form-based controllers (GET & POST)
+** Essential to support RESTful resource URLs
+*** incl. PUT and DELETE
+
+//^
+
+HTTP Status Code Support::
+* Web apps just use a handful of status codes.
+** Success: 200 OK
+** Redirect: 302/303 for Redirects
+** Client Error: 404 Not Found
+** Server Error: 500 (such as unhandled Exceptions)
+* RESTful applications use many additional codes to communicate with their clients.
+* Add `@ResponseStatus`to controller method.
+** Don't have to set status on HttpServletResponse manually.
+
+//^
+
+IMPORTANT: When using @ResponseStatus, void methods no longer imply a default view name. The reponse body will be empty.
+
+//^
+
+Determining Location Header::
+* Location header value must be full URL.
+** Determine based on request URL.
+*** Controller shouldn't know host name or servlet path.
+* URL of created child resource usually a sub-path.
+** POST to http://www.myshop.com/store/orders gives http://www.myshop.com/store/orders/123
+** Use Spring's `UriTemplate`to ensure new URL is valid.
+
+//^
+
+Exception Handling::
+* Define  @ResponseStatus directly on a exception class.
+* For existing exceptions you cannot annotate, use @ExceptionHandler method on controller.
+
+[source,java]
+.Request mappings.
+----
+@RequestMapping(value="/orders", method=RequestMethod.GET) 
+public void listOrders(Model model) {
+	// find all Orders and add them to the model
+}
+
+@RequestMapping(value="/orders", method=RequestMethod.POST) 
+public void createOrder(HttpServletRequest request, Model model) {
+	// process the order data from the request
+}
+
+@RequestMapping(value="/orders", method=RequestMethod.POST) 
+@ResponseStatus(HttpStatus.CREATED) // 201
+public void createOrder(HttpServletRequest request, HttpServletResponse response) { 
+	Order order = createOrder(request);
+	// determine full URI for newly created Order based on request
+	response.addHeader("Location", getLocationForChildResource(request, order.getId()));
+}
+----
+
+[source,java]
+.Determining the location header.
+----
+String getLocationForChildResource(HttpServletRequest request, Object childIdentifier) {
+	StringBuffer url = request.getRequestURL();
+	UriTemplate template = new UriTemplate(url.append("/{childId}").toString()); 
+	return template.expand(childIdentifier).toASCIIString();
+}
+----
+
+[source,java]
+.Can also annotate exception classes with @ResponseStatus.
+----
+@ResponseStatus(HttpStatus.NOT_FOUND) // 404
+public class OrderNotFoundException extends RuntimeException { ... }
+----
+
+[source,java]
+.Exception handler.
+----
+@ResponseStatus(HttpStatus.CONFLICT) // 409 
+@ExceptionHandler({DataIntegrityViolationException.class}) public void conflict() {
+	// could add the exception, response, etc. as method params
+}
+----
+
+
+==== Using MessageConverters
+
+HttpMessageConverter::
+* Converts between HTTP request/response and object.
+* Various implementations registered by default when using `@EnableWebMvc` or `<mvc:annotation-driven/>`.
+* Define HandlerAdapter explicitly to register other HttpMessageConverters.
+
+//^
+
+@RequestBody::
+* Enables converters for request data.
+* Right converter chosen automatically.
+** Based on content type of request.
+** Order could be mapped from XML with JAXB2 or from JSON with Jackson, for example.
+
+//^ 
+
+@ResponseBody::
+* Use converters for response data by annotating method with @ResponseBody
+** Converter handles rendering to response
+** No ViewResolver and View involved anymore!
+
+//^
+
+Automatic Content Negotiation::
+* HttpMessageConverter selected automatically.
+** For @Request/ResponseBody annotated parameters.
+** Each converter has list of supported media types.
+* Allows multiple representations for a single controller method.
+** Without affecting controller implementation.
+** Alternative to using Views.
+* Flexible media-selection.
+** Based on Accept header in HTTP request, or URL suffix, or URL format parameter.
+
+=== Summary
+
+* REST is an architectural style that can be applied to HTTP-based applications.
+** Useful for supporting diverse clients and building highly scalable systems.
+** Java provides JAX-RS as standard specification.
+* Spring-MVC adds REST support using a familiar programming model.
+** Extended by @Request-/@ResponseBody.
+* Use RestTemplate for accessing RESTful apps.

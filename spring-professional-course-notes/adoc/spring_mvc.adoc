@@ -1,0 +1,176 @@
+== Spring MVC
+
+[.lead]
+Web framework based on the Model/View/Controller pattern.
+
+
+=== Request Processing Lifecycle
+
+* Web request handling based on an incoming URL...
+** ...we need to call a method...
+** ...after which the return value (if any)...
+** ...needs to be rendered using a view
+
+.Request Processing Lifecycle.
+image::request_processing_lifecycle.png[width=700,align="center"]
+
+
+=== Key Artifacts
+
+
+==== DispatcherServlet
+
+General::
+* A “front controller”
+** coordinates all request handling activities
+** analogous to Struts ActionServlet / JSF FacesServlet
+* Delegates to Web infrastructure beans
+* Invokes user Web components
+* Fully customizable
+** interfaces for all infrastructure beans 
+** many extension points
+
+//^
+
+Configuration::
+* Defined in web.xml or WebApplicationInitializer 
+* Uses Spring for its configuration
+** programming to interfaces + dependency injection
+** easy to swap parts in and out
+* Creates separate “servlet” application context 
+** configuration is private to DispatcherServlet
+* Full access to the parent “root” context
+** instantiated via ContextLoaderListener
+*** shared across servlets
+
+//^
+
+[.right]
+image::initializer.png[width=300]
+
+//^
+
+Web Initializer::
+	ServletContainerInitializer;; Interface from Servlet 3 specification, implement to initialize servlet system.
+    SpringServletContainerInitialize;; Spring's implementation which, in turn, delegates to one or more ...
+    WebApplicationInitializer;; Base-class for all Spring MVC apps to implement for servlet configuration without web.xml.
+	AbstractContextLoaderInitializer;; Sets up a ContextLoaderListener, you provide root ApplicationContext.
+    AbstractAnnotationConfigDispatcherServletInitializer;; Defines a DispatcherServlet, assumes Java Config. You provide root and servlet Java config classes.
+
+//^
+
+image::contexts_after_startup.png[width=600,align="center"]
+
+[source,java]
+.Java Configuration. Beans defined in MVC context have acess to root context beans.
+----
+public class MyWebInitializer extends AbstractAnnotationConfigDispatcherServletInitializer {
+
+	// Tell Spring what to use for the Root context:
+	@Override
+	protected Class<?>[] getRootConfigClasses() {
+		return new Class<?>[]{ RootConfig.class }; 
+	}
+
+	// Tell Spring what to use for the DispatcherServlet context: 
+	@Override 
+	protected Class<?>[] getServletConfigClasses() {
+		return new Class<?>[]{ MvcConfig.class }; 
+	}
+
+	// DispatcherServlet mapping:
+	@Override 
+	protected String[] getServletMappings() {
+		return new String[]{"/main/*"}; 
+	}
+}
+----
+
+
+==== Controllers
+
+General::
+* Annotate controllers with @Controller
+
+//^
+
+Request Mapping::
+* `@RequestMapping` tells Spring what method to execute when processing a particular request
+** Mapping rules typically URL-based, optionally using wild cards:
+*** `/login`
+*** `/editAccount`
+*** `/listAccounts.htm`
+*** `/reward/*/**`
+
+//^
+
+Controller Method Parameters::
+* Pick parameters as you want.
+** HttpServletRequest, HttpSession, Principal ...
+** Model for sending data to the view.
+
+//^
+
+Extracting Request Parameters::
+* Use @RequestParam annotation
+** Extracts parameter from the request
+** Performs type conversion
+
+Uri Templates::
+* Values can be extracted from request URLs
+** Based on URI Templates
+** not Spring-specific concept, used in many frameworks
+** Use `{...}` placeholders and `@PathVariable`
+* Allows clean URLs without request parameters
+
+[source,java]
+----
+@Controller
+public class AccountController {
+
+	@RequestMapping("/listAccounts") 
+	public String list(Model model) { ... } // <1>
+
+	@RequestMapping("/showAccount")
+	public String show(@RequestParam("entityId") long id, Model model) { ... } // <2>
+
+	@RequestMapping("/accounts/{accountId}")
+	public String show(
+			@PathVariable("accountId") long id, // <3>
+			@RequestHeader(“user-agent”)) String agent, // <4>
+			Model model) { ... }
+}
+----
+<1> Returns view name and holds data for view in method parameter.
+<2> Extract request parameters.
+<3> Extract path variables.
+<4> Or even request headers.
+
+==== Views
+
+General::
+* A View renders web output.
+** Many built-in views available for JSPs, XSLT, templating approaches (Velocity, FreeMarker), etc.
+** View support classes for creating PDFs, Excel spreadsheets, etc.
+* Controllers typically return a 'logical view name' String. 
+* ViewResolvers select View based on view name.
+
+//^
+
+View Resolvers::
+* The DispatcherServlet delegates to a ViewResolver to obtain View implementation based on view name.
+* The default ViewResolver treats the view name as a Web Application-relative file path
+** i.e. a JSP: /WEB-INF/reward/list.jsp
+* Override this default by registering a ViewResolver bean with the DispatcherServlet
+** We will use InternalResourceViewResolver 
+** Several other options available.
+
+=== Quick Start
+
+Steps to developing a Spring MVC application::
+. Deploy a Dispatcher Servlet (one-time only)
+. Implement a controller
+. Register the Controller with the DispatcherServlet 
+. Implement the View(s)
+. Register a ViewResolver (optional, one-time only) 
+. Deploy and test

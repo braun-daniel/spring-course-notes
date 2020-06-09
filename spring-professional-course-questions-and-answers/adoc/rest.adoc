@@ -1,0 +1,108 @@
+== REST
+
+
+What does REST stand for?::
+
+Representational state transfer (REST)
+
+
+What is a resource?::
+
+Any information that can be named can be a resource: a document or image, a temporal service. Alternatively: "whatever thing is accessed by the URL you supply".
+
+
+What are safe REST operations?::
+
+OPTIONS, GET, HEAD
+
+
+What are idempotent operations? Why is idempotency important?::
+
+OPTIONS, GET, HEAD, PUT, DELETE
+
+Is REST scalable and/or interoperable?::
+
+It is scalable e.g., through load balancing and highly interoperable since REST uses simple HTTP which is commonly implemented.
+
+
+What are the advantages of the RestTemplate?::
+
+Simplifies and abstracts REST handling.
+
+
+Which HTTP methods does REST use?::
+
+PORT, GET, PUT, PATCH, DELETE
+
+
+What is an HttpMessageConverter?::
+
+Converts between HTTP request/response and object.
+
+
+Is REST normally stateless?::
+
+Yes. Requires client to keep track of the state.
+
+
+What does @RequestMapping do?::
+
+@RequestMapping tells Spring what method to execute when processing a particular request.
+
+
+Is @Controller a stereotype? Is @RestController a stereotype?::
+
+Both are.
+
+
+What is the difference between @Controller and @RestController?::
+
+@RestController is a stereotype annotation that combines @ResponseBody and @Controller.
+
+
+When do you need @ResponseBody?::
+
+Use converters for response data by annotating method with @ResponseBody. No ViewResolver/View involved anymore.
+
+
+What does @PathVariable do?::
+
+Extracts path variables from the request.
+
+
+What is the HTTP status return code for a successful DELETE statement?::
+
+404 (Not Found)
+
+
+What does CRUD mean?::
+
+Create, Read, Update , Delete
+
+Is REST secure? What can you do to secure it?::
+
+Use SSL/TLS or JWT.
+
+
+Where do you need @EnableWebMVC?::
+
+Adding this annotation to an @Configuration class imports the Spring MVC configuration from WebMvcConfigurationSupport, e.g.:
+
+
+Name some common http response codes. When do you need @ResponseStatus?::
+
+* 401 (Created) - POST
+* 200 (OK) - GET, PUT, PATCH , DELETE
+* 404 (NOT FOUND) - GET, PUT, PATCH , DELETE
+
+@ResponseStatus on a controller method, exception or exception handler.
+
+
+Does REST work with transport layer security (TLS)?::
+
+Yes.
+
+
+Do you need Spring MVC in your classpath?::
+
+Yes. It is included in the Spring Web project but not in the Spring Core.

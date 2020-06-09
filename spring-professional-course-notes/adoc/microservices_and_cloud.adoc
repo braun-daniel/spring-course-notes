@@ -1,0 +1,303 @@
+== Microservices and Cloud embeded Systems
+
+[.lead]
+Building Cloud Native Applications.
+
+
+=== What are Microservices?
+
+Three Tier Architecture::
+* Single “monolithic” application that does everything.
+* Single, large development team.
+* Separate Ops, DBAs, Dev teams.
+* All data in single relational database.
+
+//^
+
+Microservice Features::
+* Multi-Language
+** Not all the services need to be in the same language / framework
+* Polyglot Persistence
+** Each service uses the most suitable storage system.
+* Stand-alone Development
+** Develop, Test and Deploy each service independently.
+** Separate teams, leverage Dev Ops.
+
+//^
+
+[width="100%",options="header"]
+.Trade-Offs.
+|=======
+|Single App|Microservices
+|Easier to build |Harder to build
+|Large process to deploy |Network Overheads
+|Ultimately more complex to enhance and maintain|Ultimately simpler to enhance and maintain
+|Scaling Up (bigger processors) limited|Scaling Out (more processes) easier
+|=======
+
+//^
+
+Core Spring Architectural Concepts::
+* Spring emphasizes
+** Loose Coupling
+*** Applications are built from collaborating services (processes).
+*** Similar to Service Oriented Architectures (SOA).
+** Tight Cohesion
+*** An application (service) that deals with a single view of data.
+*** Also known as “Bounded Contexts” (Domain-Driven Design).
+
+//^
+
+Why Cloud, Why PaaS (Platform as a Service)?::
+* Deploying multiple processes is complicated.
+** Security, resilience, redundancy, load-balancing.
+* A Cloud (PaaS) provides the necessary tools.
+** Natural fit for deploying a microservice-based system.
+** Application is the unit of deployment.
+** Application instances are the unit of scaling.
+** Start, stop and restart apps independently, on-demand.
+** Provide dynamic load-balancing, scaling and routing.
+
+
+
+Cloud Native Applications::
+* Applications
+** Designed to run “in the cloud”.
+** In isolated, disposable containers.
+*** Fast to scale-up and scale-down.
+* Make no assumptions about the underlying infrastructure.
+** Local file-system transient.
+** Sessions lost on restart.
+* Should design applications to suit this environment.
+**  Use http://12factor.net[Twelve Factor Application design patterns].
+
+//^
+
+Why Spring Boot?::
+* Faster to develop than traditional Spring.
+* Java apps become as easy as Grails or Rails apps.
+** But with JVM robustness and scalability.
+* Easy to incorporate other Spring modules.
+** As listed on previous slide.
+* Spring Cloud requires Spring Boot.
+
+=== Challenges and Implementation
+
+Create a new Microservice App::
+* Start with Monolith
+* As it grows:
+** Decompose into micro-service(s).
+** Enables separately manageable and deployable units.
+** Each can use own storage solution (polyglot persistence).
+
+//^
+
+Decompose an existing Monolith::
+* Develop new functionality as microservice(s) around existing single-process application.
+* Refactor existing monolith functionality into new microservice(s).
+** Refactor at service layer.
+** Monolith service communicates over an agreed protocol e.g., HTML with the new microservice.
+
+
+=== Spring Cloud
+
+==== Overview
+
+* Building blocks for Cloud and Microservice applications.
+** Microservices Infrastructure.
+*** Wraps up and makes available useful services.
+*** Several based on other Open Source projects e.g., Netfix, HashiCorp's Consul
+** Cloud Independence.
+*** Access cloud-specific information and services.
+*** Support for Cloud Foundry, AWS and Heroku.
+*** Or run without any cloud at all.
+* Uses Spring Boot starters.
+** Requires Spring Boot to work.
+
+//^
+
+Spring Cloud Projects::
+* IaaS Integration
+* Dynamic Reconfiguration
+* Service Discovery / Load Balancing
+* Utilities
+* Data Ingestion
+
+//^
+
+Communication between Microservices::
+* Rest / JSON typically used.
+** How do Services find each other?
+** What happens if we run mutliple instances?
+
+//^
+
+Registry Servers for Microservices::
+* Two popular open-source registry services.
+** Eureka (Netflix)
+** Consul.io (Vagrant)
+* Spring cloud makes it easy to use either of or switch between them.
+
+//^
+
+[source,xml]
+.Spring Cloud Maven descriptor.
+----
+<parent>
+	<groupId>org.springframework.cloud</groupId> // Parent
+	<artifactId>spring-cloud-starter-parent</artifactId> 
+	<version>Angel.SR3</version> // Consolidated set of releases.
+</parent>
+    <dependencies>
+    	<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+        	<groupId>org.springframework.cloud</groupId> // Spring Cloud
+			<artifactId>spring-cloud-starter</artifactId>
+		</dependency>
+   		<dependency>
+        	<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-eureka-server</artifactId> // Eureka regostry server.
+		</dependency>
+	</dependencies>
+...
+----
+
+//^
+
+Building a Microservice System::
+. Run a Discovery Service.
+. Run a Microservice.
+** Ensure it registers itself with the Discovery Service.
+. How do Microservice clients find the service?
+** Inject a “smart” RestTemplate.
+*** Spring performs service lookup for you.
+*** Uses logical service names in URLs.
+
+==== Eureka Service Discovery
+
+[source,java]
+.Eureka application class.
+----
+@SpringBootApplication
+@EnableEurekaServer
+public class EurekaApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(EurekaApplication.class, args);
+	}
+}
+----
+
+[source,yaml]
+.Eureka configuration.
+----
+server:
+	port : 8761
+eureka:
+	instance:
+		hostname: localhost
+	client:  # Not a client
+  		registerWithEureka: false
+	  	fetchRegistry: false
+----
+
+
+==== Service Registration
+
+* Each microservice declares itself a discovery-client.
+** Using `@EnableDiscoveryClient`.
+** Registers using its application name.
+
+[source,java]
+.Service implementation.
+----
+@SpringBootApplication
+@EnableDiscoveryClient
+public class AccountsApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+	}
+}
+----
+
+[source,java]
+.Service discovery configuration.
+----
+spring:
+	application:
+		name: accounts-microservice //<1>
+eureka:
+	client:
+ 		serviceUrl:
+			defaultZone: http://localhost:8761/eureka/ //<2>
+----
+<1> Service name.
+<2> Eureka server URL.
+
+
+==== Service Discovery Client
+
+[source,java]
+.Discovery client with a smart Rest-Template.
+----
+@SpringBootApplication
+@EnableDiscoveryClient
+public class FrontEndApplication {
+    
+	public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+	}
+
+	@Bean
+	public AccountManager accountManager() {
+    	return new RemoteAccountManager();
+	}
+}
+
+@Service
+public class RemoteAccountManager {
+
+	// Spring injects a “smart” service-aware template
+	// configured with RibbonHttpRequestClient to do a
+	// load-balanced lookup
+	@Autowired
+	@LoadBalanced
+	RestTemplate restTemplate;
+
+	public Account findAccount(String id) {
+		// Fetch data
+		return restTemplate.getForObject(
+				"http://accounts-microservice/accounts/{id}", // service name
+				Account.class, 
+				id);
+	}
+}
+----
+
+Intelligent Routing::
+* Spring Cloud automatically integrates two Netflix utilities.
+** “Eureka” service-discovery.
+** “Ribbon” load-balancer.
+* End result
+** Determines the best available service to use (when there are multiple instances of a microservice).
+** Just inject the load-balanced RestTemplate.
+** Automatic lookup by logical service-name.
+
+[NOTE]
+=================
+Check out::
+* http://projects.spring.io/spring-cloud[Project Homepage]
+* https://github.com/mstine/2015-cfsummit-deploying-ms-to-cf[Matt Stine's presentation from CF Summit]
+* https://spring.io/blog/2015/07/14/microservices-with-spring[Spring Blog Article]
+* https://github.com/mstine/intro-spring-cloud-workshop[Spring Cloud/Boot Demos]
+=================
+
+
+=== Summary
+
+* After completing this lesson, you should have learnt: 
+** What is a Microservice Architecture?
+** Advantages and Challenges of Microservices.
+** Implementation using Spring Cloud projects.
